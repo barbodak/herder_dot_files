@@ -1,128 +1,229 @@
-# Herdr dotfiles
+# Herdr · Mission Control
 
-Personal terminal UI configuration for **Herdr TUI 0.9.5**, with a Rose Pine theme, tmux-style Ctrl+S prefix, custom agent mascots, and English conversation titles.
+Personal dotfiles for **stock Herdr TUI 0.9.5**: full conversation titles and pixel mascots in the sidebar, compact numbered agent tabs across the top, and OS-aware icons for ordinary terminals. The setup uses Herdr configuration and a Python reporter; it does not replace or patch the Herdr binary.
 
-![Ghost sidebar](screenshots/sidebar-ghost.png)
+![Sidebar with orange Claude mascots and mint Codex ghosts](screenshots/sidebar-ghost.png)
 
-## Included
+The included screenshots capture earlier stages of the customization. The current setup also includes numbered top tabs, host OS icons, and the three-row OpenCode logo described below.
 
-- `herdr/config.toml`: theme, pane/window shortcuts, sidebar rows, and a fixed 36-column sidebar.
-- `bin/herdr-tab-titles`: full sidebar titles, numbered Nerd Font logos in the top bar and host OS icons beside shell names, two-line wrapping at 32 text columns, tab-number labels, prompt recency, and agent mascots.
-- `install.py`: installs both files with timestamped backups.
-- `screenshots/`: before and after screenshots supplied during customization.
-- [ICONS.md](ICONS.md): all 20 icon options from the design session.
+## Sidebar: conversations and characters
 
-Claude keeps its orange pixel mascot. Codex uses the mint Ghost, occupying the same 9-column × 2-row footprint:
+The expanded sidebar is fixed at **36 columns**. Conversation titles wrap at **32 text characters per line**, with up to two lines; overflow is shortened with `…`. The full title reporter keeps up to six words. The sidebar starts collapsed, retaining a compact status rail, and Ctrl+S → b toggles it.
 
-```text
- ▗█████▖
- █ ▪ ▪ █
-```
+Each agent has a distinct text mascot:
 
-OpenCode uses a light-gray, full-height three-row block outline based on its logo:
+| Agent | Color | Sidebar mark |
+| --- | --- | --- |
+| Claude Code | Orange `#D97757` | Claude's familiar pixel mascot |
+| Codex | Mint `#9EF0A6` | Custom Ghost chosen from 20 icon studies |
+| OpenCode | Light gray `#EEEEEE` | Three-row block rendition of its rectangular logo, with a shaded center |
 
 ```text
-  █▀▀█
-  █▒▒█
-  █▄▄█
+CLAUDE             CODEX              OPENCODE
+ ▐▛███▜▌            ▗█████▖             █▀▀█
+▝▜█████▛▘           █ ▪ ▪ █             █▒▒█
+                                       █▄▄█
 ```
 
-Its top-tab marker is the ordinary Unicode symbol **▣** (U+25A3), a compact substitute rather than an official Nerd Font logo. No custom font is needed. Agent mascots and an initial sidebar title are populated automatically for newly detected agents, including OpenCode.
+The art is made from text and Unicode block characters, not embedded pictures. Claude and Codex occupy two art rows; OpenCode uses three to keep its taller shape. Each row is padded to a nine-character slot with braille blanks so Herdr preserves its alignment.
 
-The script pads mascot rows to nine cells with braille blanks so Herdr preserves their alignment.
+A sidebar entry combines:
 
-## Install
+- Herdr's live agent state symbol.
+- The conversation title, with a tab-position number when initialized/reported.
+- The agent's mascot.
+- Time since the last user prompt, when the full reporter has that information.
+- The containing Herdr space name.
 
-Requires Herdr 0.9.5 on PATH and Python 3.11+. The screenshots use macOS; these dotfiles do not install or update Herdr.
+The space name is a container label, not the working directory. An agent running in a different project directory can still belong to the `hrt` space.
+
+### State symbols
+
+With `status_indicators = "symbols"`, Herdr supplies:
+
+| Symbol | Meaning |
+| --- | --- |
+| `◐` | Working |
+| `×` | Blocked / needs input |
+| `✓` | Done |
+| `○` | Idle |
+| `·` | Unknown |
+
+Herdr owns detection and state transitions. The dotfiles provide the presentation, titles, and art.
+
+## Top bar: numbered, compact tabs
+
+Every tab label begins with its current position in its space, followed by a dot: **`1.`**, **`2.`**, and so on. The watcher recalculates top-bar positions after tabs are added, closed, or reordered. Numbering restarts in each space.
+
+Agent-only tabs show a number and a compact mark instead of repeating the conversation title:
+
+| Example | Agent | Symbol source |
+| --- | --- | --- |
+| `1. ` | Claude Code | Nerd Fonts `cod-claude`, U+EC82 |
+| `2. ` | Codex | Nerd Fonts `cod-openai`, U+EC81; OpenAI's knot logo |
+| `3. ▣` | OpenCode | Standard Unicode U+25A3; a compact block-style substitute |
+
+The OpenCode top mark is not an official Nerd Font logo. It was chosen because the installed Nerd Font has no OpenCode glyph. It needs no custom font. All three marks are monochrome text glyphs, not emoji. Their tab backgrounds and selection highlighting remain controlled by Herdr's theme.
+
+Agent tabs retain their detailed conversation titles in the sidebar. Shell tabs keep their readable names in the top bar. A tab containing multiple agent kinds can show multiple marks; a mixed agent/shell tab keeps its readable name and uses the shell icon logic.
+
+## Shell tabs: local and remote OS logos
+
+Ordinary terminals display **`number. + OS logo + tab name`**. The OS logo replaces the earlier generic terminal-window icon.
+
+| Example | Meaning | Codepoint |
+| --- | --- | --- |
+| `4.  Local shell` | macOS, including local Apple terminals | U+F179 |
+| `5.  Ubuntu server` | SSH host confirmed to run Ubuntu | U+F31B |
+| `6.  Linux server` | Other confirmed Linux hosts | U+F17C |
+| `7.  Remote shell` | SSH host whose OS could not be identified | U+F0AC |
+
+Agent tabs continue to use their agent marks, rather than OS icons.
+
+### SSH detection
+
+The watcher inspects the foreground process of shell panes through Herdr's API. If it is OpenSSH, it extracts the connection destination and relevant options, then runs a separate, short, read-only probe: `uname -s` plus the distribution ID from `/etc/os-release`.
+
+The probe:
+
+- Reuses connection settings such as the destination, port, identity file, SSH config file, and jump host.
+- Runs without password prompts and requires an already trusted host key.
+- Disables forwarding and local commands for the probe, and does not replay the user's remote command.
+- Has a five-second process timeout.
+- Caches successful checks in watcher memory for ten minutes, and failures for one minute.
+
+It never types commands into the terminal being used. Password-only logins, unsupported SSH command forms, or failed probes use the globe instead of guessing Ubuntu from a name. Returning to a local shell restores the local OS logo on the next watcher pass. For split shell tabs, the focused pane is selected when Herdr reports it; otherwise the first pane is used.
+
+No SSH configuration or remote dotfiles are modified. Host details are not included in this repository.
+
+## Appearance and navigation
+
+The theme is **Rose Pine**, with manual theme selection. The tab bar's right side contains zoom status and a 24-hour clock, separated by ` · `. Agent completion/input notifications use macOS system notifications.
+
+The prefix is **Ctrl+S**. Press and release it, then press the key below:
+
+| Key after Ctrl+S | Action |
+| --- | --- |
+| `1`–`9` | Select that top-tab position in the current space |
+| `c` | New tab |
+| `n` / `p` | Next / previous tab |
+| `,` | Rename tab |
+| `&` | Close tab |
+| `%` or `v` | Split vertically, placing a pane to the right |
+| `"` or `-` | Split horizontally, placing a pane below |
+| Arrow keys or `h` / `j` / `k` / `l` | Focus a pane |
+| `o` or Tab | Cycle panes |
+| `;` | Return to the last pane |
+| `x` | Close pane |
+| `z` | Toggle pane zoom |
+| `{` / `}` | Swap panes |
+| `[` | Copy mode |
+| `s` or `w` | Space picker |
+| `$` | Rename space |
+| Shift+P | Rename pane |
+| Shift+S | Settings |
+| `b` | Toggle sidebar |
+| `d` | Detach |
+
+Ctrl+Arrow resizes panes directly, without the prefix.
+
+The top numbers refer to **tab order**, not agent priority. Sidebar titles are separate metadata: the labels-only watcher preserves existing sidebar titles and their embedded numbers. It does not renumber them after a reorder. Run the full reporter to refresh sidebar titles and tab-position prefixes. Switching the sidebar to priority sorting changes the displayed agent order without changing top-tab shortcuts. Tabs numbered above nine are displayed, but the configured numeric shortcut range is only 1–9.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `herdr/config.toml` | Theme, keys, sidebar geometry, colors, and agent row layouts |
+| `bin/herdr-tab-titles` | Titles, mascots, numbered labels, and host OS detection |
+| `install.py` | Copy-based installation with timestamped backups |
+| `tests/` | Tab labels, host detection, and sidebar initialization checks |
+| `screenshots/` | Before/after captures from the customization session |
+| [ICONS.md](ICONS.md) | The original 20 Codex icon studies; Ghost was selected |
+
+## Requirements and font support
+
+- Herdr TUI 0.9.5 on PATH.
+- Python 3.11 or later.
+- A terminal font/fallback containing the relevant Nerd Font glyphs.
+- OpenSSH for remote OS probes.
+- Optional: Claude CLI for translating Persian conversation titles in full-reporter mode.
+
+The setup was checked on macOS with Ghostty. **Symbols Nerd Font Mono 3.5.1** already contained the Claude and OpenAI logos; Ghostty selected the installed fallback automatically. The OS icons are also present. No font installation or Ghostty configuration change was required.
+
+```sh
+ghostty +show-face --cp=0xec82  # Claude
+ghostty +show-face --cp=0xec81  # OpenAI
+ghostty +show-face --cp=0x25a3  # OpenCode substitute
+ghostty +show-face --cp=0xf179  # Apple
+ghostty +show-face --cp=0xf31b  # Ubuntu
+ghostty +show-face --cp=0xf17c  # Linux
+ghostty +show-face --cp=0xf0ac  # Unknown SSH host
+```
+
+Other terminals may need the Nerd Font configured as a fallback if the logos appear as missing-glyph boxes. GitHub's browser font may not display the private-use Nerd Font characters in this README; the screenshots and codepoint names provide context.
+
+## Install and run
 
 ```sh
 python3 install.py --reload
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+The installer backs up existing destination files, copies the config and script, and optionally reloads the running Herdr server. It does not install/update Herdr, change shell startup files, or create an automatic startup service.
+
+Run the reporter **from a Herdr pane**:
+
+```sh
+# Refresh full sidebar titles, recency, art, and top labels once:
 herdr-tab-titles
-```
 
-Run title reporting from inside a Herdr pane. To keep titles and recency fresh, leave the watcher running in a shell terminal:
-
-```sh
+# Keep all of those refreshed:
 herdr-tab-titles --watch
-```
 
-To update tab numbers and icons while preserving the existing sidebar text:
-
-```sh
+# Preserve current sidebar titles; initialize new mascots and update top labels:
 herdr-tab-titles --labels-only
-# Keep numbers and icons current as tabs change:
+
+# Watch using that title-preserving mode:
 herdr-tab-titles --labels-only --watch
 ```
 
-Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. OpenCode uses the Unicode block symbol ▣. These are monochrome text glyphs, not emoji. Every tab begins with its position number followed by a dot (for example, `1.`) in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number. + OS icon + name`: Apple for macOS, Ubuntu for Ubuntu, and Linux for other Linux distributions. The OS icon replaces the old terminal symbol. Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with its OS icon unless you manually renamed the tab.
+Watcher passes normally run every five seconds; SSH probes or title translations can lengthen a pass. Run one watcher at a time.
 
-Stop the watcher before restoring all names:
+The live setup uses a background **labels-only watcher**. Its PID is recorded in `~/.config/herdr/tab-label-watcher.pid`, and output goes to `~/.config/herdr/tab-label-watcher.log`. It runs until stopped or the machine restarts. After restarting, run the watcher again from a Herdr pane. A foreground watcher stops with Ctrl+C.
+
+### Titles, recency, and local state
+
+Full-reporter mode reads Claude/Codex local history to derive time since the last user prompt. It can translate Persian titles with `claude -p --model haiku`, caching translations in `~/.config/herdr/title-cache.json`. Translation is a model call, not an offline operation. Failed translations fall back to the saved tab name. Automatic prompt-recency lookup currently covers Claude and Codex, not OpenCode.
+
+Labels-only mode preserves existing sidebar titles and recency values, which can therefore become stale. It initializes missing mascot/title metadata for newly detected agents, including OpenCode, without translating titles.
+
+Original tab names are saved locally in `~/.config/herdr/saved-tab-labels.json` before decoration. This lets a shell tab recover its readable name when its agent exits and allows explicit restoration. Manual tab renames are preserved as the new underlying name. No chat histories, saved tab names, SSH host details, translation caches, logs, or session snapshots are committed here.
+
+## Restore
+
+Stop the watcher first. If it was started in the background, inspect the recorded PID and confirm it is the `herdr-tab-titles` watcher before stopping that process.
 
 ```sh
 herdr-tab-titles --restore-tabs
 ```
 
-A watcher started in the foreground can be stopped with Ctrl+C. The live label-only watcher started during setup runs in the background; its PID is recorded in `~/.config/herdr/tab-label-watcher.pid` and its output goes to `~/.config/herdr/tab-label-watcher.log`. It lasts until stopped or the machine restarts. After restarting, run the watcher again from a Herdr pane. The installer itself does not create a startup service.
-
-The reporter reads Claude/Codex local history to derive prompt times. Persian titles are translated with the locally installed `claude -p --model haiku` command and cached under `~/.config/herdr/title-cache.json`; that optional translation makes a model call. Failed translations fall back to the existing tab label. Conversation titles are reported only to sidebar metadata; the top agent labels use numbers and compact logos. No histories or caches are included in this repository.
-
-## Font support
-
-A font containing U+EC81 and U+EC82 is required. The installed **Symbols Nerd Font Mono 3.5.1** contains both, and Ghostty's font lookup selects it automatically. No Ghostty font change was needed. Check your setup with:
+This removes generated top-bar numbers/icons and restores the underlying names. To revert the installed configuration or script, copy back the desired timestamped `.bak-...` file printed by the installer, then run:
 
 ```sh
-ghostty +show-face --cp=0xec82
-ghostty +show-face --cp=0xec81
-ghostty +show-face --cp=0xf489
+herdr server reload-config
 ```
 
-Expected: the logos report `Symbols Nerd Font Mono`; the terminal icon reports `Symbols Nerd Font`. On other terminals, configure that font as a fallback if the icons appear as missing-glyph boxes.
+## Stock Herdr limits
 
-## SSH host icons
+These customizations keep the stock Herdr binary. In 0.9.5:
 
-The watcher checks the foreground process of shell tabs. Local macOS shells use the Apple logo (U+F179). When the foreground program is OpenSSH, a short, read-only SSH probe runs `uname -s` and reads the distribution ID from `/etc/os-release`. Confirmed Ubuntu hosts use U+F31B; other Linux hosts use U+F17C; remote macOS uses Apple. An unknown or unreachable SSH host uses a globe (U+F0AC), rather than guessing its OS from its hostname. Agent tabs retain their Claude/OpenAI logos.
+- Agent tabs still exist in the top bar; their long names are replaced by compact marks.
+- Tab slots have a hardcoded minimum width of eight columns; this configuration cannot halve it.
+- Per-agent top-tab background colors are not exposed. Selected and unselected tab colors follow the shared theme.
+- Ctrl+S → Space → number is not a configured second prefix layer.
+- Ctrl+S → number follows top-tab position, not the sidebar's priority-sorted agent order.
 
-Successful OS checks are cached for ten minutes in watcher memory; failed checks for one minute. The probe uses the existing destination and connection options, including ports, keys, SSH config files, and jump hosts. It is noninteractive, requires an already trusted host key, disables forwarding and local commands, and has a five-second process timeout. It never sends a command into the terminal you are using. Password-only sessions can show the globe because the separate probe cannot ask for a password. Unsupported SSH command forms also use the globe.
-
-Changes appear on the next watcher pass. Exiting SSH restores the local OS icon. For split shell tabs, the currently focused pane is used when available, otherwise the first pane. No SSH configuration or remote dotfiles are changed, and no host details or caches are committed here.
-
-The local Apple icon was verified live. Ubuntu/macOS/Linux probe responses, failures, SSH argument handling, and icon transitions are covered by mocked tests; no live remote SSH session was open during setup.
-
-References: [OpenSSH command options](https://man.openbsd.org/ssh.1), [OpenSSH configuration](https://man.openbsd.org/ssh_config.5).
-
-## Existing shortcuts
-
-Press Ctrl+S, release it, then press the key shown.
-
-| Keys after Ctrl+S | Action |
-| --- | --- |
-| `1`–`9` | Select tab in tab order |
-| `c` | New tab |
-| `n` / `p` | Next / previous tab |
-| `,` | Rename tab |
-| `%` or `v` | Split right |
-| `"` or `-` | Split down |
-| `h` / `j` / `k` / `l` | Focus pane |
-| `z` | Zoom pane |
-| `b` | Toggle sidebar |
-| `d` | Detach |
-
-## Requested next layout
-
-The target is to show agents only in the sidebar, shell terminals only in the top bar, number agents by their visible sidebar order, and use Ctrl+S → Space → number for shell terminals.
-
-**The stock-Herdr workaround now replaces agent tab names with logo glyphs while keeping full sidebar titles.** Removing the remaining agent tab slots and adding the second prefix layer are not implemented. Herdr 0.9.5 provides `keys.focus_agent` for visible agent order, but has no configuration option to hide agent tabs from the top bar or define a second prefix key layer. Removing the tab slots and adding the second prefix layer require a custom TUI build. The current script's numbers refer to tab order, not the sidebar's priority order.
-
-References: [configuration](https://herdr.dev/tui/docs/configuration/), [configuration reference](https://herdr.dev/tui/docs/config-reference/), [Herdr source](https://github.com/herdrdev/herdr/tree/v0.9.5).
-
-## Restore
-
-The installer prints the location of every backup. Copy the desired `.bak-<timestamp>` file back over its original destination and run `herdr server reload-config`. No server restart is required for the configuration changes here.
-
-## Screenshots
-
-[Original terminal-box icon and narrow title wrapping](screenshots/sidebar-before.png) · [Ghost icon and wider title wrapping](screenshots/sidebar-ghost.png)
+The earlier terminal-box Codex mark, blank agent labels, and colored-square emoji experiment were replaced by the current Ghost sidebar mascot and monochrome top glyphs.
 
 ## Validation
 
@@ -130,4 +231,17 @@ The installer prints the location of every backup. Copy the desired `.bak-<times
 python3 -m unittest discover -s tests -v
 ```
 
-Tests cover numbered agent logos, terminal names, repeated updates, restoration after agent exit, explicit restore, manual names starting with numbers, migration from blank labels, tab reordering, and numbering independently in each workspace. The live session was also checked through the Herdr API: every tab had its position number, agents had their correct logos, and the shell tab retained its name beside the local Apple icon.
+Fourteen tests cover tab numbering, per-space order, reordering, icon transitions, name restoration, numeric user names, migration from blank labels, SSH argument handling, mocked OS probes and failures, caching, foreground-process selection, and OpenCode sidebar initialization.
+
+Live API checks verified top labels, preserved sidebar titles, the local Apple icon, and OpenCode's three-row art and top mark. Ghostty's font lookup verified glyph availability. Remote Ubuntu/macOS/Linux responses are tested with simulated SSH results; no live remote SSH session was open during that validation.
+
+## Screenshots and references
+
+- [Original terminal-box Codex mark and narrow wrapping](screenshots/sidebar-before.png)
+- [Ghost mascot and wider sidebar titles](screenshots/sidebar-ghost.png)
+- [Herdr configuration](https://herdr.dev/tui/docs/configuration/)
+- [Herdr 0.9.5 source](https://github.com/herdrdev/herdr/tree/v0.9.5)
+- [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts)
+- [OpenCode logo reference](https://opencode.ai/brand)
+- [OpenSSH command options](https://man.openbsd.org/ssh.1)
+- [OpenSSH configuration](https://man.openbsd.org/ssh_config.5)
