@@ -4,7 +4,7 @@ Persian titles are translated once with a short `claude -p` call (Haiku) and cac
 ~/.config/herdr/title-cache.json.
 Usage: herdr-tab-titles          (once)
        herdr-tab-titles --watch  (keep them in sync every 5 s)"""
-import argparse, json, os, re, sqlite3, subprocess, sys, time
+import argparse, fcntl, hashlib, json, os, re, sqlite3, subprocess, sys, time
 from pathlib import Path
 from contextlib import closing
 
@@ -490,7 +490,32 @@ def sync():
     update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
 
 
+def watcher_paths(home=None, socket_path=None):
+    home = home or Path.home()
+    root = home / ".config/herdr"
+    default_socket = root / "herdr.sock"
+    socket_path = socket_path or os.environ.get("HERDR_SOCKET_PATH", str(default_socket))
+    if Path(socket_path).resolve() != default_socket.resolve():
+        root = root / "watchers" / hashlib.sha256(str(Path(socket_path).resolve()).encode()).hexdigest()[:16]
+    return {"lock": root / "tab-label-watcher.lock", "launch_lock": root / "watcher-start.lock",
+            "pid": root / "tab-label-watcher.pid", "log": root / "tab-label-watcher.log",
+            "labels": root / "saved-tab-labels.json"}
+
+
+def acquire_watcher_lock(paths):
+    paths["lock"].parent.mkdir(parents=True, exist_ok=True)
+    handle = paths["lock"].open("a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    paths["pid"].write_text(str(os.getpid()) + "\n")
+    return handle
+
+
 def main():
+    global TAB_LABELS
     parser = argparse.ArgumentParser(description="Full sidebar titles and numbered Nerd Font tab labels.")
     parser.add_argument("--watch", action="store_true", help="Refresh every 5 seconds")
     parser.add_argument("--restore-tabs", action="store_true", help="Restore saved tab labels and exit")
@@ -498,6 +523,13 @@ def main():
     args = parser.parse_args()
     if os.environ.get("HERDR_ENV") != "1":
         parser.error("Run inside a Herdr-managed pane (HERDR_ENV=1).")
+    paths = watcher_paths()
+    TAB_LABELS = paths["labels"]
+    # Hold the file descriptor for the entire loop; the OS releases it on exit/crash.
+    watcher_lock = acquire_watcher_lock(paths) if args.watch else None
+    if args.watch and watcher_lock is None:
+        print("A Mission Control watcher is already running for this Herdr session.")
+        return
     if args.restore_tabs:
         update_tab_labels(herdr("tab", "list")["tabs"], [], restore=True)
         return

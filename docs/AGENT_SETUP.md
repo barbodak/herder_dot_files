@@ -17,8 +17,8 @@ backups before changing existing files. Use the supported dotfile/script route;
 do not replace Herdr with a custom build or restart my running agents.
 
 Check the installed Herdr version and fonts. Install the reporter, reload the
-config, and start exactly one watcher from inside this Herdr session. Explain
-which watcher mode you chose, how to stop it, and what I must run after a reboot.
+config, and register the native startup plugin so one watcher starts with Herdr. Explain
+which watcher mode you chose, how to stop it, and how automatic startup works after a reboot.
 Run the tests and verify the labels/metadata with the local Herdr API. Report any
 feature my local versions cannot provide rather than guessing model/OS values.
 ```
@@ -50,7 +50,7 @@ Do not put the user's session data or screenshots into a new upstream commit as 
 For a full-preset installation:
 
 ```sh
-python3 install.py --reload
+python3 install.py --reload --autostart
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
@@ -105,9 +105,21 @@ ghostty +show-face --cp=0xf31b
 
 Reuse a working installed font/fallback. If one is missing, configure an appropriate Nerd Font through the terminal's supported settings. Changing the terminal's main text font is not necessary when a fallback works.
 
-## 6. Start one watcher inside Herdr
+## 6. Enable automatic startup and verify one watcher
 
-Choose a mode explicitly:
+The recommended installer command above links the native `mission-control` plugin. Its startup hook starts the labels-only watcher when the Herdr server starts, including after a reboot. It also starts it immediately during installation. The installed plugin is stored under `~/.config/herdr/mission-control-plugin`, independently of the checkout.
+
+Confirm registration and status:
+
+```sh
+herdr plugin list --plugin mission-control --json
+herdr plugin action invoke watcher-status --plugin mission-control
+herdr plugin log list --plugin mission-control --limit 5
+```
+
+A per-socket file lock prevents duplicate workers, including concurrent starts and manual `--watch` commands. Named sessions keep their own state. Do not manually launch an additional watcher after successful automatic setup.
+
+For a manual installation without `--autostart`, or when deliberately choosing a different mode:
 
 - **Full mode:** refresh conversation titles and prompt recency as well as mascots, models, and top labels. Persian-title translation uses the Claude CLI and makes model calls.
 - **Labels-only mode:** preserve existing sidebar conversation titles/recency; initialize missing mascot/title metadata; refresh models, top numbers, and OS logos. This is the mode used for the screenshot setup.
@@ -126,18 +138,17 @@ herdr-tab-titles --labels-only --watch
 
 Stop a foreground watcher with Ctrl+C. To refresh titles and recency continuously, omit `--labels-only`.
 
-A setup agent may start a background watcher from the current Herdr pane environment:
+Manage the automatically started watcher through Herdr:
 
 ```sh
-mkdir -p "$HOME/.config/herdr"
-nohup "$HOME/.local/bin/herdr-tab-titles" --labels-only --watch \
-  >> "$HOME/.config/herdr/tab-label-watcher.log" 2>&1 < /dev/null &
-echo "$!" > "$HOME/.config/herdr/tab-label-watcher.pid"
+herdr plugin action invoke start-watcher --plugin mission-control
+herdr plugin action invoke stop-watcher --plugin mission-control
+herdr plugin action invoke watcher-status --plugin mission-control
 ```
 
-First check for an existing watcher and reuse it, or stop only the verified reporter process before replacing it. Do not kill a process based solely on a stale PID file. Never stop the Herdr server to restart this reporter.
+The actions return asynchronously; inspect the plugin log for completion. Repeated starts must return the same PID. Starting the server runs the hook; reattaching a client uses the existing watcher. This is startup automation, not a crash-restarting supervisor.
 
-This repository does not install an automatic login/startup service. Explain that the watcher must be started again from a Herdr pane after a reboot. Do not create a startup service unless the user asks for it; it needs the correct session environment.
+To disable the integration, invoke `stop-watcher`, then `herdr plugin disable mission-control`. Stopping the reporter does not stop Herdr or its agents. Do not create an additional shell wrapper or OS login service for this preset.
 
 ## 7. Verify the actual result
 
@@ -156,9 +167,9 @@ SSH OS detection uses a separate noninteractive read-only connection. Explain th
 
 ## 8. Handoff and restoration
 
-Tell the user which config was backed up, which font provides the glyphs, which watcher mode is running, and how to restart it after reboot. Point out the stock-Herdr limits in the README.
+Tell the user which config was backed up, which font provides the glyphs, which watcher mode is running, and that the native startup hook handles future Herdr server starts, including after reboot. Point out the stock-Herdr limits in the README.
 
-To restore undecorated tab names, stop the verified watcher and run:
+To restore undecorated tab names, stop the watcher through its plugin action (and inspect the log for completion), then run:
 
 ```sh
 herdr-tab-titles --restore-tabs

@@ -30,9 +30,8 @@ unrelated settings and backing up existing files. Keep full agent details in
 the sidebar and compact agent marks/named OS-aware terminals at the top.
 
 Check my Herdr version and fonts. Install the reporter, reload the config,
-and start exactly one watcher from inside my Herdr session. Verify the result
-without restarting my agents. Explain the watcher mode, restart-after-reboot
-steps, and restore procedure. Keep stock Herdr; do not create a custom fork.
+and register its native startup plugin so exactly one watcher starts with Herdr. Verify the result
+without restarting my agents. Explain the watcher mode, automatic startup, and restore procedure. Keep stock Herdr; do not create a custom fork.
 ```
 
 The repository is currently private, so the agent needs Git access to read it. If you already have that access, use your normal authenticated Git setup.
@@ -188,7 +187,8 @@ The top numbers refer to **tab order**, not agent priority. Sidebar titles are s
 | --- | --- |
 | `herdr/config.toml` | Theme, keys, sidebar geometry, colors, and agent row layouts |
 | `bin/herdr-tab-titles` | Titles, mascots, numbered labels, and host OS detection |
-| `install.py` | Copy-based installation with timestamped backups |
+| `install.py` | Copy-based installation, backups, and optional native startup registration |
+| `plugin/` | Herdr startup manifest and start/stop/status controller |
 | `tests/` | Tab labels, host detection, and sidebar initialization checks |
 | `screenshots/` | The supplied full screenshot and enlarged sidebar/top-bar crops |
 | [AGENTS.md](AGENTS.md) | Instructions for an agent installing or changing this preset |
@@ -198,7 +198,7 @@ The top numbers refer to **tab order**, not agent priority. Sidebar titles are s
 ## Requirements and font support
 
 - Herdr TUI 0.9.5 on PATH.
-- Python 3.11 or later.
+- Python 3.11 or later on macOS/Linux (the watcher uses a Unix file lock).
 - A terminal font/fallback containing the relevant Nerd Font glyphs.
 - OpenSSH for remote OS probes.
 - Optional: Claude CLI for translating Persian conversation titles in full-reporter mode.
@@ -220,11 +220,13 @@ Other terminals may need the Nerd Font configured as a fallback if the logos app
 ## Install and run
 
 ```sh
-python3 install.py --reload
+python3 install.py --reload --autostart
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The installer backs up existing destination files, copies the config and script, and optionally reloads the running Herdr server. It does not install/update Herdr, change shell startup files, or create an automatic startup service.
+The installer backs up existing destination files, copies the config and reporter, and optionally reloads the running Herdr server. With `--autostart`, it also installs and links the native **mission-control** plugin and starts the watcher now. Run this option from inside Herdr using your actual home directory. Omit `--autostart` for a manual installation.
+
+The startup plugin is copied to `~/.config/herdr/mission-control-plugin`, so it does not depend on the Git checkout staying in the same place. Its installed manifest records the Python interpreter used during installation. No shell startup file or macOS login service is changed, and the Herdr binary is not replaced.
 
 Run the reporter **from a Herdr pane**:
 
@@ -244,7 +246,33 @@ herdr-tab-titles --labels-only --watch
 
 Watcher passes normally run every five seconds; SSH probes or title translations can lengthen a pass. Run one watcher at a time.
 
-The live setup uses a background **labels-only watcher**. Its PID is recorded in `~/.config/herdr/tab-label-watcher.pid`, and output goes to `~/.config/herdr/tab-label-watcher.log`. It runs until stopped or the machine restarts. After restarting, run the watcher again from a Herdr pane. A foreground watcher stops with Ctrl+C.
+### Automatic startup
+
+With `--autostart` installed, **starting the Herdr server starts the watcher automatically**, including after a reboot. Reattaching a client to an already running server keeps using the existing watcher.
+
+The native plugin's `[[startup]]` hook launches a background **labels-only watcher**. A per-socket file lock guarantees one watcher for each Herdr session, even if two hooks or a manual `--watch` command run together. Named sessions have separate locks, PID/log files, and saved tab-label state. The default session retains the existing paths under `~/.config/herdr/`; other sockets use hashed subdirectories under `~/.config/herdr/watchers/`.
+
+The default watcher PID is recorded in `~/.config/herdr/tab-label-watcher.pid`; output goes to `~/.config/herdr/tab-label-watcher.log`. The OS releases its lock if the process exits or crashes, so a stale PID file does not block the next start.
+
+Use these actions from Herdr:
+
+```sh
+herdr plugin action invoke watcher-status --plugin mission-control
+herdr plugin action invoke start-watcher --plugin mission-control
+herdr plugin action invoke stop-watcher --plugin mission-control
+herdr plugin log list --plugin mission-control --limit 5
+```
+
+Actions are asynchronous; the plugin log shows their result. Repeated starts return the same running PID rather than adding another watcher. The setup migrates the earlier manually launched watcher by verifying and stopping only that reporter process. It does not restart agents, panes, or the Herdr server.
+
+To turn off automatic startup, stop the watcher and then disable the plugin:
+
+```sh
+herdr plugin action invoke stop-watcher --plugin mission-control
+herdr plugin disable mission-control
+```
+
+A manual foreground watcher remains available and stops with Ctrl+C. Stop the automatic watcher first when switching to a foreground/full-mode watcher; otherwise the duplicate guard leaves the existing process running. If you install without `--autostart`, it must still be started manually after reboot. The startup hook runs when the Herdr server starts; it is not a continuously restarting process supervisor. After an unexpected watcher exit, use `start-watcher` or restart it on the next normal server startup.
 
 ### Titles, recency, and local state
 
@@ -286,9 +314,9 @@ The earlier terminal-box Codex mark, blank agent labels, and colored-square emoj
 python3 -m unittest discover -s tests -v
 ```
 
-Nineteen tests cover tab numbering, per-space order, reordering, icon transitions, name restoration, numeric user names, migration from blank labels, SSH argument handling, mocked OS probes and failures, caching, foreground-process selection, OpenCode sidebar initialization, exact and ambiguous model/session matching, model changes, missing data, and model display names.
+Twenty-four tests cover tab numbering, per-space order, reordering, icon transitions, name restoration, numeric user names, migration from blank labels, SSH argument handling, mocked OS probes and failures, caching, foreground-process selection, OpenCode sidebar initialization, exact and ambiguous model/session matching, model changes, missing data, model display names, concurrent startup, duplicate prevention, stop/restart behavior, and per-socket isolation.
 
-Live API checks verified top labels, preserved sidebar titles, the local Apple icon, and OpenCode's three-row art and top mark. Ghostty's font lookup verified glyph availability. Remote Ubuntu/macOS/Linux responses are tested with simulated SSH results; no live remote SSH session was open during that validation.
+The native startup plugin was linked and its start action verified live. A second start returned the same PID, and the process list confirmed one watcher. Startup registration was checked without restarting the live Herdr server or its agents. Live API checks also verified top labels, preserved sidebar titles, the local Apple icon, and OpenCode's three-row art and top mark. Ghostty's font lookup verified glyph availability. Remote Ubuntu/macOS/Linux responses are tested with simulated SSH results; no live remote SSH session was open during that validation.
 
 ## Screenshots and references
 

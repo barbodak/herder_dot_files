@@ -1,0 +1,24 @@
+id = "mission-control"
+name = "Mission Control dotfiles"
+version = "0.2.0"
+min_herdr_version = "0.9.5"
+description = "Starts the sidebar and top-tab reporter automatically with Herdr"
+platforms = ["macos", "linux"]
+
+[[startup]]
+command = ["python3", "watcher-control.py", "start"]
+
+[[actions]]
+id = "start-watcher"
+title = "Start Mission Control watcher"
+command = ["python3", "watcher-control.py", "start"]
+
+[[actions]]
+id = "stop-watcher"
+title = "Stop Mission Control watcher"
+command = ["python3", "watcher-control.py", "stop"]
+
+[[actions]]
+id = "watcher-status"
+title = "Mission Control watcher status"
+command = ["python3", "watcher-control.py", "status"]

@@ -10,7 +10,7 @@ When someone asks you to set this repository up:
 - Preserve unrelated local configuration and make timestamped backups before replacing files. If the user requested the complete preset, `install.py` provides backups and copies the full config.
 - Do not copy the screenshot's sample titles, project names, times, models, or session IDs into the user's configuration.
 - Before controlling a live Herdr session, verify `HERDR_ENV=1`, run `herdr --skill`, and follow the installed version's instructions. Outside Herdr, prepare dotfiles and give the user the commands to run inside a pane; do not inspect/control their focused live session from outside it.
-- Keep one watcher per session. Preserve the current pane/session environment when starting it. Do not stop the Herdr server or restart running agents to install these dotfiles.
+- Use `install.py --reload --autostart` for the native startup plugin when setting up this preset. Keep one watcher per session using its file lock; verify the plugin action and registration. Preserve the current pane/session environment when starting it manually. Do not stop the Herdr server or restart running agents to install these dotfiles.
 - Never read, publish, or commit credentials, private session databases/transcripts, SSH configuration, caches, or logs to this repository. Model lookup happens locally in read-only mode.
 - Verify font glyphs, reload the configuration, and check live labels/metadata. A successful config reload alone does not prove the watcher works.
 
