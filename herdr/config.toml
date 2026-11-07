@@ -1,0 +1,92 @@
+onboarding = false
+
+# tmux-style keybindings (prefix matches tmux: ctrl+s)
+[keys]
+prefix = "ctrl+s"
+
+# panes
+split_vertical = ["prefix+%", "prefix+v"]
+split_horizontal = ["prefix+\"", "prefix+minus"]
+focus_pane_left = ["prefix+left", "prefix+h"]
+focus_pane_down = ["prefix+down", "prefix+j"]
+focus_pane_up = ["prefix+up", "prefix+k"]
+focus_pane_right = ["prefix+right", "prefix+l"]
+cycle_pane_next = ["prefix+o", "prefix+tab"]
+last_pane = "prefix+;"
+close_pane = "prefix+x"
+zoom = "prefix+z"
+swap_pane_up = "prefix+{"
+swap_pane_down = "prefix+}"
+resize_pane_left = "ctrl+left"
+resize_pane_down = "ctrl+down"
+resize_pane_up = "ctrl+up"
+resize_pane_right = "ctrl+right"
+rename_pane = "prefix+shift+p"
+copy_mode = "prefix+["
+
+# tabs (tmux windows)
+new_tab = "prefix+c"
+next_tab = "prefix+n"
+previous_tab = "prefix+p"
+rename_tab = "prefix+,"
+close_tab = "prefix+&"
+switch_tab = "prefix+1..9"
+
+# workspaces (tmux sessions)
+workspace_picker = ["prefix+s", "prefix+w"]
+rename_workspace = "prefix+$"
+settings = "prefix+shift+s"
+
+detach = "prefix+d"
+
+[ui]
+# Full-width titles, wrapped by herdr-tab-titles at 32 text columns.
+sidebar_width = 36
+sidebar_min_width = 36
+sidebar_max_width = 36
+# agents in tab order, so the number in front of each title = its tab = prefix+N
+agent_panel_sort = "spaces"
+# sidebar starts collapsed (toggle with prefix+b); compact keeps agent state dots visible
+sidebar_start_collapsed = true
+sidebar_collapsed_mode = "compact"
+
+# status area on the right of the tab bar (like tmux status-right)
+tab_bar_right = [
+  { type = "zoom" },
+  { type = "datetime", format = "%H:%M" },
+]
+tab_bar_right_separator = " · "
+
+status_indicators = "symbols"
+[ui.toast]
+# macOS notification when an agent finishes or needs input
+delivery = "system"
+
+[theme]
+name = "rose-pine"
+auto_switch = false
+
+# Agent list: the conversation title (English, max 6 words, wrapped over two lines by ~/.local/bin/herdr-tab-titles) in bold,
+# agent + workspace dimmed underneath.
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", { token = "$t1", bold = true }],
+  [{ token = "$t2", bold = true }],
+  [{ token = "agent", dim = true }, { token = "workspace", dim = true }],
+]
+
+# Two-line marks occupy the same 9-column footprint for Claude and Codex.
+[ui.sidebar.agents.rows_by_agent]
+# Two-line logo; beside its top line: how long ago the last prompt was sent (token $ago from the script).
+claude = [
+  ["state_icon", { token = "$t1", bold = true }],
+  [{ token = "$t2", bold = true }],
+  [{ token = "$m1", fg = "#D97757" }, { token = "$ago", dim = true }],
+  [{ token = "$m2", fg = "#D97757" }, { token = "workspace", dim = true }],
+]
+codex = [
+  ["state_icon", { token = "$t1", bold = true }],
+  [{ token = "$t2", bold = true }],
+  [{ token = "$m1", fg = "#9EF0A6" }, { token = "$ago", dim = true }],
+  [{ token = "$m2", fg = "#9EF0A6" }, { token = "workspace", dim = true }],
+]

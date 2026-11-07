@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Name every herdr tab that holds one agent after that agent's conversation title, always in English.
+Persian titles are translated once with a short `claude -p` call (Haiku) and cached in
+~/.config/herdr/title-cache.json.
+Usage: herdr-tab-titles          (once)
+       herdr-tab-titles --watch  (keep them in sync every 30 s)"""
+import json, os, re, subprocess, sys, time
+from pathlib import Path
+
+CACHE = Path.home() / ".config/herdr/title-cache.json"
+NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
+GENERIC = {"claude code", "codex", ""}
+
+
+def load_cache():
+    try:
+        return json.loads(CACHE.read_text())
+    except Exception:
+        return {}
+
+
+def to_english(title, cache):
+    if not NON_LATIN.search(title):
+        return title
+    if title in cache:
+        return cache[title]
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HERDR_")}  # don't register as a herdr agent
+    prompt = ("Translate this coding-session title to a short English title (at most 6 words, Title Case). "
+              "Reply with the title only, no quotes.\n\n" + title)
+    try:
+        out = subprocess.run(["claude", "-p", "--model", "haiku", prompt], capture_output=True, text=True,
+                             timeout=60, env=env, cwd=str(Path.home())).stdout.strip().splitlines()
+        english = (out[0] if out else "").strip().strip('"\'')
+    except Exception:
+        english = ""
+    if not english or NON_LATIN.search(english):
+        return None  # try again next round
+    cache[title] = english
+    CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=1))
+    return english
+
+
+MAX_WORDS = 6
+LINE = 32  # 36-column sidebar minus padding and the state icon
+
+
+def shorten(title):
+    return " ".join(title.split()[:MAX_WORDS])
+
+
+def two_lines(title):
+    """Word-wrap into at most two lines of LINE characters (the second one cut with … if still too long)."""
+    first, rest = "", []
+    words = title.split()
+    while words and len((first + " " + words[0]).strip()) <= LINE:
+        first = (first + " " + words.pop(0)).strip()
+    if not first and words:  # one very long word
+        first, words = words[0][:LINE], [words[0][LINE:]] + words[1:]
+    second = " ".join(words)
+    if len(second) > LINE:
+        second = second[:LINE - 1] + "…"
+    return first, second
+
+
+LOGOS = {"claude": "▐▛███▜▌", "codex": ">_"}  # colours: ui.sidebar.agents.rows_by_agent in config.toml
+# Claude gets the two-line mascot as $m1/$m2 (U+2800 braille blank pads it so herdr does not trim the indent).
+MASCOT = {"claude": ("\u2800▐▛███▜▌", "▝▜█████▛▘"),
+          "codex": ("\u2800▗█████▖\u2800", "\u2800█ ▪ ▪ █\u2800")}  # Ghost mascot, same 2 x 9 cells as Claude
+
+
+def last_prompts():
+    """{claude session id: epoch s} and {codex thread name: epoch s} of the last prompt the user sent."""
+    claude, codex_by_id, names = {}, {}, {}
+    for path, kind in ((Path.home() / ".claude/history.jsonl", "claude"), (Path.home() / ".codex/history.jsonl", "codex"),
+                       (Path.home() / ".codex/session_index.jsonl", "index")):
+        try:
+            lines = path.read_text(errors="ignore").splitlines()[-5000:]
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if kind == "claude" and row.get("sessionId"):
+                claude[row["sessionId"]] = max(claude.get(row["sessionId"], 0), row.get("timestamp", 0) / 1000)
+            elif kind == "codex" and row.get("session_id"):
+                codex_by_id[row["session_id"]] = max(codex_by_id.get(row["session_id"], 0), row.get("ts", 0))
+            elif kind == "index" and row.get("thread_name"):
+                names[row["thread_name"]] = row.get("id")
+    codex = {name: codex_by_id[i] for name, i in names.items() if i in codex_by_id}
+    return claude, codex
+
+
+def ago(ts):
+    if not ts:
+        return ""
+    s = max(0, int(time.time() - ts))
+    if s < 60:
+        return "just now"
+    for size, unit in ((86400, "d"), (3600, "h"), (60, "m")):
+        if s >= size:
+            return f"{s // size}{unit} ago"
+
+
+def report(pane, first, second, agent="", since=""):
+    args = ["herdr", "pane", "report-metadata", pane, "--source", "herdr-tab-titles", "--token", f"t1={first}"]
+    args += ["--token", f"ago={since}"] if since else ["--clear-token", "ago"]
+    if agent in LOGOS:
+        args += ["--display-agent", LOGOS[agent]]
+    if agent in MASCOT:
+        for i, line in enumerate(MASCOT[agent], 1):
+            args += ["--token", f"m{i}={line}"]
+    args += ["--token", f"t2={second}"] if second else ["--clear-token", "t2"]
+    r = subprocess.run(args, capture_output=True, text=True)
+    if r.returncode or r.stdout.strip() or r.stderr.strip():
+        print("report failed:", pane, (r.stdout + r.stderr).strip()[:200], flush=True)
+
+
+def herdr(*args):
+    return json.loads(subprocess.run(["herdr", *args], capture_output=True, text=True).stdout)["result"]
+
+
+def sync():
+    cache = load_cache()
+    claude_last, codex_last = last_prompts()
+    agents = herdr("agent", "list")["agents"]
+    tabs = herdr("tab", "list")["tabs"]
+    labels = {t["tab_id"]: t.get("label", "") for t in tabs}
+    position, seen = {}, {}
+    for t in tabs:  # herdr lists tabs in their order; prefix+N switches to the Nth tab of the workspace
+        seen[t["workspace_id"]] = seen.get(t["workspace_id"], 0) + 1
+        position[t["tab_id"]] = seen[t["workspace_id"]]
+    by_tab = {}
+    for a in agents:
+        by_tab.setdefault(a["tab_id"], []).append(a)
+    for tab, group in by_tab.items():
+        title = (group[0].get("terminal_title_stripped") or "").removesuffix(" | hrt").strip()
+        if len(group) != 1:
+            continue
+        a = group[0]
+        session = (a.get("agent_session") or {}).get("value")
+        since = ago(claude_last.get(session) if a["agent"] == "claude" else codex_last.get(title))
+        english = None if title.lower() in GENERIC else to_english(title, cache)
+        if not english:  # no real title yet: show the tab's own name
+            report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} " + (labels.get(tab) or a["agent"])), agent=a["agent"], since=since)
+            continue
+        english = shorten(english)
+        report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} {english}"), agent=a["agent"], since=since)
+        if labels.get(tab) != english:
+            subprocess.run(["herdr", "tab", "rename", tab, english], capture_output=True)
+            print(f"{labels.get(tab)!r} -> {english!r}", flush=True)
+
+
+if "--watch" in sys.argv:
+    while True:
+        try:
+            sync()
+        except Exception as e:
+            print("skip:", e, flush=True)
+        time.sleep(30)
+else:
+    sync()
