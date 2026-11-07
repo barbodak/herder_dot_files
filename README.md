@@ -19,6 +19,15 @@ Claude keeps its orange pixel mascot. Codex uses the mint Ghost, occupying the s
  █ ▪ ▪ █
 ```
 
+OpenCode uses a light-gray, two-row block outline based on its logo:
+
+```text
+  █▀▀█
+  █▄▄█
+```
+
+Its top-tab marker is the ordinary Unicode symbol **▣** (U+25A3), a compact substitute rather than an official Nerd Font logo. No custom font is needed. Agent mascots and an initial sidebar title are populated automatically for newly detected agents, including OpenCode.
+
 The script pads both rows to nine cells with braille blanks so Herdr preserves their alignment.
 
 ## Install
@@ -45,7 +54,7 @@ herdr-tab-titles --labels-only
 herdr-tab-titles --labels-only --watch
 ```
 
-Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. These are monochrome font logos, not emoji. Every tab begins with its position number followed by a dot (for example, `1.`) in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number. + OS icon + name`: Apple for macOS, Ubuntu for Ubuntu, and Linux for other Linux distributions. The OS icon replaces the old terminal symbol. Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with its OS icon unless you manually renamed the tab.
+Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. OpenCode uses the Unicode block symbol ▣. These are monochrome text glyphs, not emoji. Every tab begins with its position number followed by a dot (for example, `1.`) in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number. + OS icon + name`: Apple for macOS, Ubuntu for Ubuntu, and Linux for other Linux distributions. The OS icon replaces the old terminal symbol. Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with its OS icon unless you manually renamed the tab.
 
 Stop the watcher before restoring all names:
 
