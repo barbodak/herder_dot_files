@@ -80,7 +80,7 @@ LOGOS = {"claude": "▐▛███▜▌", "codex": ">_", "opencode": "█▀�
 # Claude gets the two-line mascot as $m1/$m2 (U+2800 braille blank pads it so herdr does not trim the indent).
 MASCOT = {"claude": ("\u2800▐▛███▜▌", "▝▜█████▛▘"),
           "codex": ("\u2800▗█████▖\u2800", "\u2800█ ▪ ▪ █\u2800"),
-          "opencode": ("\u2800█▀▀█\u2800\u2800\u2800\u2800", "\u2800█▒▒█\u2800\u2800\u2800\u2800", "\u2800█▄▄█\u2800\u2800\u2800\u2800")}  # Ghost mascot, same 2 x 9 cells as Claude
+          "opencode": ("\u2800\u2800█▀▀█\u2800\u2800\u2800", "\u2800\u2800█▒▒█\u2800\u2800\u2800", "\u2800\u2800█▄▄█\u2800\u2800\u2800")}  # Ghost mascot, same 2 x 9 cells as Claude
 
 
 def last_prompts():

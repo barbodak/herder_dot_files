@@ -25,7 +25,7 @@ CLAUDE             CODEX              OPENCODE
                                        █▄▄█
 ```
 
-The art is made from text and Unicode block characters, not embedded pictures. Claude and Codex occupy two art rows; OpenCode uses three to keep its taller shape. Each row is padded to a nine-character slot with braille blanks so Herdr preserves its alignment. Claude and Codex have one blank row immediately above their mascots. OpenCode has no extra blank row; its three-row outline is indented one character in the shared nine-character slot.
+The art is made from text and Unicode block characters, not embedded pictures. Claude and Codex occupy two art rows; OpenCode uses three to keep its taller shape. Each row is padded to a nine-character slot with braille blanks so Herdr preserves its alignment. Claude and Codex have one blank row immediately above their mascots. OpenCode has no extra blank row; its three-row outline is indented two characters in the shared nine-character slot.
 
 A sidebar entry combines:
 
