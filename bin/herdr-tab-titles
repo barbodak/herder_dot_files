@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report English conversation titles to the sidebar; blank agent labels in the top bar.
+"""Report English conversation titles to the sidebar; use Nerd Font logos in the top bar.
 Persian titles are translated once with a short `claude -p` call (Haiku) and cached in
 ~/.config/herdr/title-cache.json.
 Usage: herdr-tab-titles          (once)
@@ -9,7 +9,9 @@ from pathlib import Path
 
 CACHE = Path.home() / ".config/herdr/title-cache.json"
 TAB_LABELS = Path.home() / ".config/herdr/saved-tab-labels.json"
-BLANK_TAB = "\u2800"  # Visible blank that survives Herdr trimming an empty label
+BLANK_TAB = "\u2800"  # Legacy blank label and fallback for unknown agents
+TAB_ICONS = {"claude": "\uec82", "codex": "\uec81"}  # Nerd Fonts: cod-claude, cod-openai
+MANAGED_LABELS = {BLANK_TAB, *TAB_ICONS.values(), "\uec82\uec81"}
 NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
 GENERIC = {"claude code", "codex", ""}
 
@@ -138,25 +140,29 @@ def save_labels(labels):
 
 
 def update_tab_labels(tabs, agents, restore=False):
-    """Blank only tabs whose panes are all agents. Restore when they become shells."""
+    """Use logo glyphs on agent-only tabs; restore names when they become shells."""
     saved = saved_labels()
-    counts = {}
+    groups = {}
     for agent in agents:
-        counts[agent["tab_id"]] = counts.get(agent["tab_id"], 0) + 1
+        groups.setdefault(agent["tab_id"], []).append(agent)
     live = {tab["tab_id"] for tab in tabs}
     saved = {key: value for key, value in saved.items() if key in live}
     for tab in tabs:
         key, label = tab["tab_id"], tab.get("label", "")
-        all_agents = counts.get(key, 0) == tab.get("pane_count", 1)
+        group = groups.get(key, [])
+        all_agents = bool(group) and len(group) == tab.get("pane_count", 1)
         if all_agents and not restore:
-            if label != BLANK_TAB:
-                saved[key] = label
+            kinds = {agent.get("agent") for agent in group}
+            icon = "".join(glyph for kind, glyph in TAB_ICONS.items() if kind in kinds) or BLANK_TAB
+            if label != icon:
+                if label not in MANAGED_LABELS:
+                    saved[key] = label
                 save_labels(saved)  # Persist the recovery label before renaming.
-                herdr("tab", "rename", key, BLANK_TAB)
+                herdr("tab", "rename", key, icon)
         elif key in saved:
-            if label == BLANK_TAB:
+            if label in MANAGED_LABELS:
                 herdr("tab", "rename", key, saved[key])
-            del saved[key]  # Respect any manual rename made after blanking.
+            del saved[key]  # Respect a manual shell rename.
     save_labels(saved)
 
 
@@ -192,10 +198,10 @@ def sync():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Full sidebar titles and blank agent tab labels.")
+    parser = argparse.ArgumentParser(description="Full sidebar titles and Nerd Font agent tab logos.")
     parser.add_argument("--watch", action="store_true", help="Refresh every 5 seconds")
     parser.add_argument("--restore-tabs", action="store_true", help="Restore saved tab labels and exit")
-    parser.add_argument("--labels-only", action="store_true", help="Blank labels without changing sidebar titles")
+    parser.add_argument("--labels-only", action="store_true", help="Set logo labels without changing sidebar titles")
     args = parser.parse_args()
     if os.environ.get("HERDR_ENV") != "1":
         parser.error("Run inside a Herdr-managed pane (HERDR_ENV=1).")
