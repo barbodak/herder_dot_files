@@ -16,13 +16,13 @@ class TabLabelTests(unittest.TestCase):
         self.tabs = [dict(tab_id='one', label='Agent conversation', pane_count=1),
                      dict(tab_id='shell', label='Server logs', pane_count=1),
                      dict(tab_id='mixed', label='Mixed', pane_count=2)]
-        self.agents = [dict(tab_id='one', agent='claude'), dict(tab_id='mixed', agent='codex')]
+        self.agents = [dict(tab_id='one'), dict(tab_id='mixed')]
 
     def test_blank_agents_only_and_restore_when_agent_exits(self):
         self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', self.ns['TAB_MARKERS']['claude'])])
+        self.assertEqual(self.calls, [('tab', 'rename', 'one', self.ns['BLANK_TAB'])])
         self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
-        self.tabs[0]['label'] = self.ns['TAB_MARKERS']['claude']
+        self.tabs[0]['label'] = self.ns['BLANK_TAB']
         self.calls.clear()
         self.ns['update_tab_labels'](self.tabs, [])
         self.assertEqual(self.calls, [('tab', 'rename', 'one', 'Agent conversation')])
@@ -30,24 +30,12 @@ class TabLabelTests(unittest.TestCase):
 
     def test_explicit_restore_and_repeated_sync(self):
         self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.tabs[0]['label'] = self.ns['TAB_MARKERS']['claude']
+        self.tabs[0]['label'] = self.ns['BLANK_TAB']
         self.calls.clear()
         self.ns['update_tab_labels'](self.tabs, self.agents)
         self.assertEqual(self.calls, [])
         self.ns['update_tab_labels'](self.tabs, self.agents, restore=True)
         self.assertEqual(self.calls, [('tab', 'rename', 'one', 'Agent conversation')])
-
-    def test_blank_migration_and_agent_kind_change_keep_original_title(self):
-        self.ns['save_labels']({'one': 'Agent conversation'})
-        self.tabs[0]['label'] = self.ns['BLANK_TAB']
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
-        self.tabs[0]['label'] = self.ns['TAB_MARKERS']['claude']
-        self.agents[0]['agent'] = 'codex'
-        self.calls.clear()
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', '🟩')])
-        self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
 
     def test_manual_shell_rename_is_preserved(self):
         self.ns['update_tab_labels'](self.tabs, self.agents)
