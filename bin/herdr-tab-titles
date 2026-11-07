@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Name every herdr tab that holds one agent after that agent's conversation title, always in English.
+"""Report English conversation titles to the sidebar; blank agent labels in the top bar.
 Persian titles are translated once with a short `claude -p` call (Haiku) and cached in
 ~/.config/herdr/title-cache.json.
 Usage: herdr-tab-titles          (once)
-       herdr-tab-titles --watch  (keep them in sync every 30 s)"""
-import json, os, re, subprocess, sys, time
+       herdr-tab-titles --watch  (keep them in sync every 5 s)"""
+import argparse, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 CACHE = Path.home() / ".config/herdr/title-cache.json"
+TAB_LABELS = Path.home() / ".config/herdr/saved-tab-labels.json"
+BLANK_TAB = "\u2800"  # Visible blank that survives Herdr trimming an empty label
 NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
 GENERIC = {"claude code", "codex", ""}
 
@@ -113,20 +115,59 @@ def report(pane, first, second, agent="", since=""):
             args += ["--token", f"m{i}={line}"]
     args += ["--token", f"t2={second}"] if second else ["--clear-token", "t2"]
     r = subprocess.run(args, capture_output=True, text=True)
-    if r.returncode or r.stdout.strip() or r.stderr.strip():
+    if r.returncode:
         print("report failed:", pane, (r.stdout + r.stderr).strip()[:200], flush=True)
 
 
 def herdr(*args):
-    return json.loads(subprocess.run(["herdr", *args], capture_output=True, text=True).stdout)["result"]
+    return json.loads(subprocess.run(["herdr", *args], capture_output=True, text=True, check=True).stdout)["result"]
+
+
+def saved_labels():
+    try:
+        return json.loads(TAB_LABELS.read_text())
+    except FileNotFoundError:
+        return {}
+
+
+def save_labels(labels):
+    TAB_LABELS.parent.mkdir(parents=True, exist_ok=True)
+    temporary = TAB_LABELS.with_suffix(".tmp")
+    temporary.write_text(json.dumps(labels, ensure_ascii=False, indent=2) + "\n")
+    temporary.replace(TAB_LABELS)
+
+
+def update_tab_labels(tabs, agents, restore=False):
+    """Blank only tabs whose panes are all agents. Restore when they become shells."""
+    saved = saved_labels()
+    counts = {}
+    for agent in agents:
+        counts[agent["tab_id"]] = counts.get(agent["tab_id"], 0) + 1
+    live = {tab["tab_id"] for tab in tabs}
+    saved = {key: value for key, value in saved.items() if key in live}
+    for tab in tabs:
+        key, label = tab["tab_id"], tab.get("label", "")
+        all_agents = counts.get(key, 0) == tab.get("pane_count", 1)
+        if all_agents and not restore:
+            if label != BLANK_TAB:
+                saved[key] = label
+                save_labels(saved)  # Persist the recovery label before renaming.
+                herdr("tab", "rename", key, BLANK_TAB)
+        elif key in saved:
+            if label == BLANK_TAB:
+                herdr("tab", "rename", key, saved[key])
+            del saved[key]  # Respect any manual rename made after blanking.
+    save_labels(saved)
 
 
 def sync():
+
     cache = load_cache()
     claude_last, codex_last = last_prompts()
     agents = herdr("agent", "list")["agents"]
     tabs = herdr("tab", "list")["tabs"]
-    labels = {t["tab_id"]: t.get("label", "") for t in tabs}
+    saved = saved_labels()
+    labels = {t["tab_id"]: saved.get(t["tab_id"], t.get("label", "")) for t in tabs}
     position, seen = {}, {}
     for t in tabs:  # herdr lists tabs in their order; prefix+N switches to the Nth tab of the workspace
         seen[t["workspace_id"]] = seen.get(t["workspace_id"], 0) + 1
@@ -147,17 +188,34 @@ def sync():
             continue
         english = shorten(english)
         report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} {english}"), agent=a["agent"], since=since)
-        if labels.get(tab) != english:
-            subprocess.run(["herdr", "tab", "rename", tab, english], capture_output=True)
-            print(f"{labels.get(tab)!r} -> {english!r}", flush=True)
+    update_tab_labels(tabs, agents)
 
 
-if "--watch" in sys.argv:
+def main():
+    parser = argparse.ArgumentParser(description="Full sidebar titles and blank agent tab labels.")
+    parser.add_argument("--watch", action="store_true", help="Refresh every 5 seconds")
+    parser.add_argument("--restore-tabs", action="store_true", help="Restore saved tab labels and exit")
+    parser.add_argument("--labels-only", action="store_true", help="Blank labels without changing sidebar titles")
+    args = parser.parse_args()
+    if os.environ.get("HERDR_ENV") != "1":
+        parser.error("Run inside a Herdr-managed pane (HERDR_ENV=1).")
+    if args.restore_tabs:
+        update_tab_labels(herdr("tab", "list")["tabs"], [], restore=True)
+        return
     while True:
         try:
-            sync()
-        except Exception as e:
-            print("skip:", e, flush=True)
-        time.sleep(30)
-else:
-    sync()
+            if args.labels_only:
+                update_tab_labels(herdr("tab", "list")["tabs"], herdr("agent", "list")["agents"])
+            else:
+                sync()
+        except Exception as error:
+            if not args.watch:
+                raise
+            print("skip:", error, flush=True)
+        if not args.watch:
+            return
+        time.sleep(5)
+
+
+if __name__ == "__main__":
+    main()
