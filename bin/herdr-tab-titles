@@ -159,7 +159,7 @@ def refresh_sidebar_mascots(tabs, agents):
             if second:
                 args.extend(["--token", f"t2={second}"])
         if len(args) > 5:
-            herdr(*args)
+            subprocess.run(["herdr", *args], capture_output=True, text=True, check=True)
 
 
 def saved_labels():
