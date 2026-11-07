@@ -2,11 +2,46 @@
 
 Personal dotfiles for **stock Herdr TUI 0.9.5**: full conversation titles and pixel mascots in the sidebar, compact numbered agent tabs across the top, and OS-aware icons for ordinary terminals. The setup uses Herdr configuration and a Python reporter; it does not replace or patch the Herdr binary.
 
-![Sidebar with orange Claude mascots and mint Codex ghosts](screenshots/sidebar-ghost.png)
+![Herdr Mission Control: agent conversations in the sidebar, compact agent marks and named terminals at the top](screenshots/mission-control.png)
 
-The included screenshots capture earlier stages of the customization. The current setup also includes numbered top tabs, host OS icons, and the three-row OpenCode logo described below.
+## Why this exists
+
+When agents and ordinary shells all have long titles across the top, finding a real terminal becomes a search through conversations. Repeating the same conversation names in two places also uses space without making the work clearer.
+
+The goal is **clarity in two places**:
+
+- **Look left to understand the agents:** readable conversation titles, who is running them, working/idle/input status, prompt recency when available, and the space/model behind each session.
+- **Look up to find your terminals:** agent tabs shrink to a number and a logo, while actual local/SSH terminals keep their readable names and OS icons.
+
+The mascots make Claude, Codex, and OpenCode easy to distinguish at a glance. Numbered tabs connect what you see to the keyboard shortcut. The result keeps the convenience of one Herdr session without maintaining a custom binary.
+
+The screenshot shows this setup in use. OpenCode's “Polishing the quiz experience” title and “just now” time were temporary screenshot preview text; they are not hardcoded by the installer.
+
+## Let your agent set it up
+
+Give your agent this repository link and the prompt below. The full [agent setup guide](docs/AGENT_SETUP.md) covers installation, the suggested keybindings, fonts, one-watcher startup, verification, and rollback. [AGENTS.md](AGENTS.md) gives repository-specific instructions.
+
+```text
+Set up https://github.com/barbodak/herder_dot_files for my Herdr terminal.
+Read README.md, AGENTS.md, and docs/AGENT_SETUP.md first.
+
+Apply the included visual preset and suggested Ctrl+S keybindings, preserving
+unrelated settings and backing up existing files. Keep full agent details in
+the sidebar and compact agent marks/named OS-aware terminals at the top.
+
+Check my Herdr version and fonts. Install the reporter, reload the config,
+and start exactly one watcher from inside my Herdr session. Verify the result
+without restarting my agents. Explain the watcher mode, restart-after-reboot
+steps, and restore procedure. Keep stock Herdr; do not create a custom fork.
+```
+
+The repository is currently private, so the agent needs Git access to read it. If you already have that access, use your normal authenticated Git setup.
 
 ## Sidebar: conversations and characters
+
+<p><img src="screenshots/sidebar-detail.png" width="460" alt="Enlarged sidebar crop showing Claude's orange mascot, Codex's mint Ghost, OpenCode's tall gray outline, conversation titles, status, space names, and model labels"></p>
+
+*Enlarged crop from the main screenshot: the sidebar is where you identify conversations and check the agents' state.*
 
 The expanded sidebar is fixed at **36 columns**. Conversation titles wrap at **32 text characters per line**, with up to two lines; overflow is shortened with `…`. The full title reporter keeps up to six words. The sidebar starts collapsed, retaining a compact status rail, and Ctrl+S → b toggles it.
 
@@ -67,6 +102,10 @@ Every tab label begins with its current position in its space, followed by a dot
 
 Agent-only tabs show a number and a compact mark instead of repeating the conversation title:
 
+![Enlarged top-bar crop showing numbered Claude and OpenAI marks and the selected Codex tab](screenshots/top-bar-agents.png)
+
+*Agent tabs remain accessible, but their short marks leave room for readable shell names.*
+
 | Example | Agent | Symbol source |
 | --- | --- | --- |
 | `1. ` | Claude Code | Nerd Fonts `cod-claude`, U+EC82 |
@@ -78,6 +117,10 @@ The OpenCode top mark is not an official Nerd Font logo. It was chosen because t
 Agent tabs retain their detailed conversation titles in the sidebar. Shell tabs keep their readable names in the top bar. A tab containing multiple agent kinds can show multiple marks; a mixed agent/shell tab keeps its readable name and uses the shell icon logic.
 
 ## Shell tabs: local and remote OS logos
+
+![Enlarged top-bar crop showing a named Ubuntu SSH terminal and a named local Apple terminal](screenshots/top-bar-terminals.png)
+
+*The named Ubuntu SSH tab and local macOS terminal are easy to pick out beside the compact agent tabs.*
 
 Ordinary terminals display **`number. + OS logo + tab name`**. The OS logo replaces the earlier generic terminal-window icon.
 
@@ -110,7 +153,7 @@ No SSH configuration or remote dotfiles are modified. Host details are not inclu
 
 The theme is **Rose Pine**, with manual theme selection. The tab bar's right side contains zoom status and a 24-hour clock, separated by ` · `. Agent completion/input notifications use macOS system notifications.
 
-The prefix is **Ctrl+S**. Press and release it, then press the key below:
+These are the suggested keybindings included in this preset and in the [agent setup guide](docs/AGENT_SETUP.md). The prefix is **Ctrl+S**. Press and release it, then press the key below:
 
 | Key after Ctrl+S | Action |
 | --- | --- |
@@ -147,7 +190,9 @@ The top numbers refer to **tab order**, not agent priority. Sidebar titles are s
 | `bin/herdr-tab-titles` | Titles, mascots, numbered labels, and host OS detection |
 | `install.py` | Copy-based installation with timestamped backups |
 | `tests/` | Tab labels, host detection, and sidebar initialization checks |
-| `screenshots/` | Before/after captures from the customization session |
+| `screenshots/` | The supplied full screenshot and enlarged sidebar/top-bar crops |
+| [AGENTS.md](AGENTS.md) | Instructions for an agent installing or changing this preset |
+| [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) | Guided setup, suggested keys, validation, and handoff |
 | [ICONS.md](ICONS.md) | The original 20 Codex icon studies; Ghost was selected |
 
 ## Requirements and font support
@@ -247,8 +292,10 @@ Live API checks verified top labels, preserved sidebar titles, the local Apple i
 
 ## Screenshots and references
 
-- [Original terminal-box Codex mark and narrow wrapping](screenshots/sidebar-before.png)
-- [Ghost mascot and wider sidebar titles](screenshots/sidebar-ghost.png)
+- [Full setup screenshot](screenshots/mission-control.png)
+- [Enlarged sidebar](screenshots/sidebar-detail.png)
+- [Enlarged agent tabs](screenshots/top-bar-agents.png)
+- [Enlarged local/SSH terminal tabs](screenshots/top-bar-terminals.png)
 - [Herdr configuration](https://herdr.dev/tui/docs/configuration/)
 - [Herdr 0.9.5 source](https://github.com/herdrdev/herdr/tree/v0.9.5)
 - [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts)
