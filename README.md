@@ -7,7 +7,7 @@ Personal terminal UI configuration for **Herdr TUI 0.9.5**, with a Rose Pine the
 ## Included
 
 - `herdr/config.toml`: theme, pane/window shortcuts, sidebar rows, and a fixed 36-column sidebar.
-- `bin/herdr-tab-titles`: full sidebar titles, Nerd Font agent logos in the top bar, two-line wrapping at 32 text columns, tab-number labels, prompt recency, and agent mascots.
+- `bin/herdr-tab-titles`: full sidebar titles, numbered Nerd Font logos in the top bar and terminal icons beside shell names, two-line wrapping at 32 text columns, tab-number labels, prompt recency, and agent mascots.
 - `install.py`: installs both files with timestamped backups.
 - `screenshots/`: before and after screenshots supplied during customization.
 - [ICONS.md](ICONS.md): all 20 icon options from the design session.
@@ -37,15 +37,15 @@ Run title reporting from inside a Herdr pane. To keep titles and recency fresh, 
 herdr-tab-titles --watch
 ```
 
-To replace only agent tab labels with logos while preserving the existing sidebar text:
+To update tab numbers and icons while preserving the existing sidebar text:
 
 ```sh
 herdr-tab-titles --labels-only
-# Keep new agent tabs logo-only and restore labels when agents exit:
+# Keep numbers and icons current as tabs change:
 herdr-tab-titles --labels-only --watch
 ```
 
-Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. These are monochrome font logos, not emoji. Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names. Tabs containing both an agent and a normal shell are left named. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass restores the old name unless you manually renamed the tab.
+Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. These are monochrome font logos, not emoji. Every tab begins with its position number in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number + terminal icon + name`, using Nerd Fonts `oct-terminal` (U+F489). Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with a terminal icon unless you manually renamed the tab.
 
 Stop the watcher before restoring all names:
 
@@ -55,7 +55,7 @@ herdr-tab-titles --restore-tabs
 
 A watcher started in the foreground can be stopped with Ctrl+C. The live label-only watcher started during setup runs in the background; its PID is recorded in `~/.config/herdr/tab-label-watcher.pid` and its output goes to `~/.config/herdr/tab-label-watcher.log`. It lasts until stopped or the machine restarts. After restarting, run the watcher again from a Herdr pane. The installer itself does not create a startup service.
 
-The reporter reads Claude/Codex local history to derive prompt times. Persian titles are translated with the locally installed `claude -p --model haiku` command and cached under `~/.config/herdr/title-cache.json`; that optional translation makes a model call. Failed translations fall back to the existing tab label. Conversation titles are reported only to sidebar metadata; the top agent labels use compact logos. No histories or caches are included in this repository.
+The reporter reads Claude/Codex local history to derive prompt times. Persian titles are translated with the locally installed `claude -p --model haiku` command and cached under `~/.config/herdr/title-cache.json`; that optional translation makes a model call. Failed translations fall back to the existing tab label. Conversation titles are reported only to sidebar metadata; the top agent labels use numbers and compact logos. No histories or caches are included in this repository.
 
 ## Font support
 
@@ -64,9 +64,10 @@ A font containing U+EC81 and U+EC82 is required. The installed **Symbols Nerd Fo
 ```sh
 ghostty +show-face --cp=0xec82
 ghostty +show-face --cp=0xec81
+ghostty +show-face --cp=0xf489
 ```
 
-Expected: both report `Symbols Nerd Font Mono`. On other terminals, configure that font as a fallback if the icons appear as missing-glyph boxes.
+Expected: the logos report `Symbols Nerd Font Mono`; the terminal icon reports `Symbols Nerd Font`. On other terminals, configure that font as a fallback if the icons appear as missing-glyph boxes.
 
 ## Existing shortcuts
 
@@ -107,4 +108,4 @@ The installer prints the location of every backup. Copy the desired `.bak-<times
 python3 -m unittest discover -s tests -v
 ```
 
-Tests cover blanking agent-only tabs, preserving normal and mixed tabs, repeated updates, restoration after agent exit, explicit restore, and manual shell renames. The live session was also checked through the Herdr API: eight agent tabs had the correct Claude/OpenAI logo labels, the shell tab kept its label, and all sidebar title tokens remained populated.
+Tests cover numbered agent logos, terminal names, repeated updates, restoration after agent exit, explicit restore, manual names starting with numbers, migration from blank labels, tab reordering, and numbering independently in each workspace. The live session was also checked through the Herdr API: every tab had its position number, agents had their correct logos, and the shell tab retained its name beside a terminal icon.

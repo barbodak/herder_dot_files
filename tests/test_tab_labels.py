@@ -13,49 +13,62 @@ class TabLabelTests(unittest.TestCase):
         self.globals['TAB_LABELS'] = Path(self.temp.name) / 'labels.json'
         self.calls = []
         self.globals['herdr'] = lambda *args: self.calls.append(args)
-        self.tabs = [dict(tab_id='one', label='Agent conversation', pane_count=1),
-                     dict(tab_id='shell', label='Server logs', pane_count=1),
-                     dict(tab_id='mixed', label='Mixed', pane_count=2)]
+        self.tabs = [dict(tab_id='one', workspace_id='w1', label='Agent conversation', pane_count=1),
+                     dict(tab_id='shell', workspace_id='w1', label='Server logs', pane_count=1),
+                     dict(tab_id='mixed', workspace_id='w1', label='Mixed', pane_count=2)]
         self.agents = [dict(tab_id='one', agent='claude'), dict(tab_id='mixed', agent='codex')]
 
-    def test_blank_agents_only_and_restore_when_agent_exits(self):
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', self.ns['TAB_ICONS']['claude'])])
-        self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
-        self.tabs[0]['label'] = self.ns['TAB_ICONS']['claude']
+    def sync(self, agents=None, restore=False):
         self.calls.clear()
-        self.ns['update_tab_labels'](self.tabs, [])
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', 'Agent conversation')])
+        self.ns['update_tab_labels'](self.tabs, self.agents if agents is None else agents, restore=restore)
+        for _, _, key, label in self.calls:
+            next(t for t in self.tabs if t['tab_id'] == key)['label'] = label
+
+    def test_numbered_logos_and_terminal_names(self):
+        self.sync()
+        self.assertEqual([t['label'] for t in self.tabs], ['1 \uec82', '2 \uf489 Server logs', '3 \uf489 Mixed'])
+        self.sync()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.ns['saved_labels']()['shell'], 'Server logs')
+
+    def test_agent_exit_restores_name_with_terminal_icon(self):
+        self.sync()
+        self.sync(agents=[])
+        self.assertEqual(self.tabs[0]['label'], '1 \uf489 Agent conversation')
+
+    def test_restore_removes_all_decorations(self):
+        self.sync()
+        self.sync(restore=True)
+        self.assertEqual([t['label'] for t in self.tabs], ['Agent conversation', 'Server logs', 'Mixed'])
         self.assertEqual(self.ns['saved_labels'](), {})
 
-    def test_explicit_restore_and_repeated_sync(self):
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.tabs[0]['label'] = self.ns['TAB_ICONS']['claude']
-        self.calls.clear()
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.calls, [])
-        self.ns['update_tab_labels'](self.tabs, self.agents, restore=True)
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', 'Agent conversation')])
-
-    def test_logo_migration_keeps_recovery_label(self):
+    def test_old_blank_migration_keeps_original_name(self):
         self.ns['save_labels']({'one': 'Agent conversation'})
         self.tabs[0]['label'] = self.ns['BLANK_TAB']
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
-        self.tabs[0]['label'] = self.ns['TAB_ICONS']['claude']
+        self.sync()
+        self.assertEqual(self.tabs[0]['label'], '1 \uec82')
         self.agents[0]['agent'] = 'codex'
-        self.calls.clear()
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.assertEqual(self.calls, [('tab', 'rename', 'one', self.ns['TAB_ICONS']['codex'])])
-        self.assertEqual(self.ns['saved_labels'](), {'one': 'Agent conversation'})
+        self.sync()
+        self.assertEqual(self.tabs[0]['label'], '1 \uec81')
+        self.assertEqual(self.ns['saved_labels']()['one'], 'Agent conversation')
 
-    def test_manual_shell_rename_is_preserved(self):
-        self.ns['update_tab_labels'](self.tabs, self.agents)
-        self.tabs[0]['label'] = 'My new shell name'
-        self.calls.clear()
-        self.ns['update_tab_labels'](self.tabs, [])
-        self.assertEqual(self.calls, [])
-        self.assertEqual(self.ns['saved_labels'](), {})
+    def test_manual_rename_preserves_number_in_real_name(self):
+        self.sync()
+        self.tabs[1]['label'] = '2026 deployment'
+        self.sync()
+        self.assertEqual(self.tabs[1]['label'], '2 \uf489 2026 deployment')
+        self.sync(restore=True)
+        self.assertEqual(self.tabs[1]['label'], '2026 deployment')
+
+    def test_reordering_and_workspace_numbering(self):
+        self.sync()
+        self.tabs.reverse()
+        self.sync()
+        self.assertEqual(self.tabs[0]['label'], '1 \uf489 Mixed')
+        self.assertEqual(self.tabs[2]['label'], '3 \uec82')
+        self.tabs[2]['workspace_id'] = 'w2'
+        self.sync()
+        self.assertEqual(self.tabs[2]['label'], '1 \uec82')
 
 
 if __name__ == '__main__':
