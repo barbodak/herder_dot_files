@@ -240,8 +240,9 @@ def session_model(agent, home=None):
     return ""
 
 
-def refresh_sidebar_mascots(tabs, agents):
+def refresh_sidebar_mascots(tabs, agents, workspaces=()):
     """Initialize new agents' sidebar art without changing existing conversation titles."""
+    workspace_names = {workspace["workspace_id"]: workspace["label"] for workspace in workspaces}
     positions, seen = {}, {}
     for tab in tabs:
         workspace = tab["workspace_id"]
@@ -256,6 +257,11 @@ def refresh_sidebar_mascots(tabs, agents):
         args = ["pane", "report-metadata", agent["pane_id"], "--source", "herdr-tab-titles"]
         if kind in ("claude", "codex") and tokens.get("logo_gap") != "\u2800":
             args.extend(["--token", "logo_gap=\u2800"])
+        workspace = workspace_names.get(agent.get("workspace_id"))
+        if workspace is not None:
+            space_model = workspace + (" · " + model if model else "")
+            if tokens.get("space_model") != space_model:
+                args.extend(["--token", f"space_model={space_model}"])
         if model != tokens.get("model", ""):
             args.extend(["--token", f"model={model}"] if model else ["--clear-token", "model"])
         if agent.get("display_agent") != LOGOS[kind]:
@@ -480,7 +486,7 @@ def sync():
             continue
         english = shorten(english)
         report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} {english}"), agent=a["agent"], since=since)
-    refresh_sidebar_mascots(tabs, agents)
+    refresh_sidebar_mascots(tabs, agents, herdr("workspace", "list")["workspaces"])
     update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
 
 
@@ -500,7 +506,7 @@ def main():
             if args.labels_only:
                 tabs = herdr("tab", "list")["tabs"]
                 agents = herdr("agent", "list")["agents"]
-                refresh_sidebar_mascots(tabs, agents)
+                refresh_sidebar_mascots(tabs, agents, herdr("workspace", "list")["workspaces"])
                 update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
             else:
                 sync()

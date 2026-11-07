@@ -39,7 +39,7 @@ The space name is a container label, not the working directory. An agent running
 
 ### Model labels
 
-The model appears immediately after the space name on the same sidebar row. The watcher refreshes it in both normal and labels-only mode, without making model/API calls:
+The model appears immediately after the space name on the same sidebar row. Both are rendered as one continuous text token, so the space name finishes before the model starts; overflow clips the trailing model instead of independently shortening both labels. The watcher refreshes it in both normal and labels-only mode, without making model/API calls:
 
 - **Claude:** reads the latest assistant model from that exact session's local transcript, ignoring synthetic messages. The displayed model is the last one recorded in the session; a selection change can appear after the next assistant response.
 - **Codex:** reads the session's model from the local read-only thread database. It matches the reported session ID when available, otherwise an exact conversation name/title plus working directory. Ambiguous matches are left blank.
