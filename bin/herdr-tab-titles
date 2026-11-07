@@ -4,8 +4,9 @@ Persian titles are translated once with a short `claude -p` call (Haiku) and cac
 ~/.config/herdr/title-cache.json.
 Usage: herdr-tab-titles          (once)
        herdr-tab-titles --watch  (keep them in sync every 5 s)"""
-import argparse, json, os, re, subprocess, sys, time
+import argparse, json, os, re, sqlite3, subprocess, sys, time
 from pathlib import Path
+from contextlib import closing
 
 CACHE = Path.home() / ".config/herdr/title-cache.json"
 TAB_LABELS = Path.home() / ".config/herdr/saved-tab-labels.json"
@@ -19,6 +20,7 @@ TERMINAL_ICON = "\uf489"  # Nerd Fonts: oct-terminal
 OS_ICONS = {"darwin": "\uf179", "ubuntu": "\uf31b", "linux": "\uf17c", "remote": "\uf0ac"}
 SHELL_ICONS = {TERMINAL_ICON, *OS_ICONS.values()}
 HOST_CACHE = {}
+MODEL_FILE_CACHE = {}
 NUMBERED_LABEL = re.compile(r"^\d+\.? (.*)$")
 NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
 GENERIC = {"claude code", "codex", ""}
@@ -78,7 +80,7 @@ LOGOS = {"claude": "▐▛███▜▌", "codex": ">_", "opencode": "█▀�
 # Claude gets the two-line mascot as $m1/$m2 (U+2800 braille blank pads it so herdr does not trim the indent).
 MASCOT = {"claude": ("\u2800▐▛███▜▌", "▝▜█████▛▘"),
           "codex": ("\u2800▗█████▖\u2800", "\u2800█ ▪ ▪ █\u2800"),
-          "opencode": ("\u2800\u2800\u2800█▀▀█\u2800\u2800", "\u2800\u2800\u2800█▒▒█\u2800\u2800", "\u2800\u2800\u2800█▄▄█\u2800\u2800")}  # Ghost mascot, same 2 x 9 cells as Claude
+          "opencode": ("\u2800█▀▀█\u2800\u2800\u2800\u2800", "\u2800█▒▒█\u2800\u2800\u2800\u2800", "\u2800█▄▄█\u2800\u2800\u2800\u2800")}  # Ghost mascot, same 2 x 9 cells as Claude
 
 
 def last_prompts():
@@ -134,6 +136,110 @@ def herdr(*args):
     return json.loads(subprocess.run(["herdr", *args], capture_output=True, text=True, check=True).stdout)["result"]
 
 
+def compact_model_name(model):
+    """Keep the model identity while removing provider prefixes and dated suffixes."""
+    model = model.rsplit("/", 1)[-1]
+    model = re.sub(r"-\d{8}$", "", model)
+    match = re.fullmatch(r"claude-(opus|sonnet|haiku)-(\d+)(?:[.-](\d+))?", model)
+    if match:
+        return match[1].title() + " " + match[2] + ("." + match[3] if match[3] else "")
+    if model.startswith("gpt-"):
+        version, *suffix = model[4:].split("-")
+        return "GPT-" + version + (" " + " ".join(word.title() for word in suffix) if suffix else "")
+    if model.startswith("nemotron-"):
+        return "Nemotron " + model[len("nemotron-"):].replace("super-vl", "SVL").replace("-free", " Free")
+    return model
+
+
+def claude_session_model(agent, home):
+    session = (agent.get("agent_session") or {}).get("value")
+    if not session or "/" in session:
+        return ""
+    projects = home / ".claude/projects"
+    path = projects / agent.get("cwd", "").replace("/", "-") / (session + ".jsonl")
+    if not path.exists():
+        matches = list(projects.glob("*/" + session + ".jsonl"))
+        if len(matches) != 1:
+            return ""
+        path = matches[0]
+    stat = path.stat()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = MODEL_FILE_CACHE.get(str(path))
+    if cached and cached[0] == stamp:
+        return cached[1]
+    with path.open("rb") as stream:
+        offset = max(0, stat.st_size - 2 * 1024 * 1024)
+        stream.seek(offset)
+        lines = stream.read().splitlines()
+    if offset:
+        lines = lines[1:]  # The first record can be partial.
+    model = ""
+    for line in reversed(lines):
+        try:
+            row = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        candidate = (row.get("message") or {}).get("model")
+        if row.get("type") == "assistant" and candidate and candidate != "<synthetic>":
+            model = candidate
+            break
+    MODEL_FILE_CACHE[str(path)] = (stamp, model)
+    return model
+
+
+def session_model(agent, home=None):
+    """Read model identity only from an unambiguously matched local session."""
+    home = home or Path.home()
+    kind = agent["agent"]
+    try:
+        if kind == "claude":
+            return claude_session_model(agent, home)
+        if kind == "codex":
+            path = home / ".codex/state_5.sqlite"
+            if not path.exists():
+                return ""
+            with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=0.2)) as db:
+                columns = {row[1] for row in db.execute("pragma table_info(threads)")}
+                if "model" not in columns:
+                    return ""
+                session = (agent.get("agent_session") or {}).get("value")
+                if session:
+                    rows = db.execute("select model from threads where id = ?", (session,)).fetchall()
+                else:
+                    title = agent.get("terminal_title_stripped", "").split(" | ")[0].strip()
+                    title = re.sub(r"^[\u2800-\u28ff]\s*", "", title)
+                    if not title:
+                        return ""
+                    fields = [field for field in ("name", "title") if field in columns]
+                    condition = " or ".join(field + " = ?" for field in fields)
+                    if not condition:
+                        return ""
+                    rows = db.execute("select model from threads where archived = 0 and cwd = ? and (" + condition + ")",
+                                      (agent.get("cwd", ""), *([title] * len(fields)))).fetchall()
+                return rows[0][0] or "" if len(rows) == 1 else ""
+        if kind == "opencode":
+            path = home / ".local/share/opencode/opencode.db"
+            if not path.exists():
+                return ""
+            with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=0.2)) as db:
+                columns = {row[1] for row in db.execute("pragma table_info(session_v2)")}
+                if "model" not in columns:
+                    return ""
+                session = (agent.get("agent_session") or {}).get("value")
+                if session:
+                    rows = db.execute("select model from session_v2 where id = ?", (session,)).fetchall()
+                else:
+                    rows = db.execute("select model from session_v2 where directory = ? and parent_id is null and time_archived is null",
+                                      (agent.get("cwd", ""),)).fetchall()
+                if len(rows) != 1 or not rows[0][0]:
+                    return ""
+                model = json.loads(rows[0][0])
+                return model.get("id") or model.get("modelID") or ""
+    except (OSError, sqlite3.Error, ValueError, TypeError, AttributeError):
+        return ""
+    return ""
+
+
 def refresh_sidebar_mascots(tabs, agents):
     """Initialize new agents' sidebar art without changing existing conversation titles."""
     positions, seen = {}, {}
@@ -146,7 +252,12 @@ def refresh_sidebar_mascots(tabs, agents):
         if kind not in MASCOT:
             continue
         tokens = agent.get("tokens", {})
+        model = compact_model_name(session_model(agent))
         args = ["pane", "report-metadata", agent["pane_id"], "--source", "herdr-tab-titles"]
+        if kind in ("claude", "codex") and tokens.get("logo_gap") != "\u2800":
+            args.extend(["--token", "logo_gap=\u2800"])
+        if model != tokens.get("model", ""):
+            args.extend(["--token", f"model={model}"] if model else ["--clear-token", "model"])
         if agent.get("display_agent") != LOGOS[kind]:
             args.extend(["--display-agent", LOGOS[kind]])
         for index, line in enumerate(MASCOT[kind], 1):
@@ -369,6 +480,7 @@ def sync():
             continue
         english = shorten(english)
         report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} {english}"), agent=a["agent"], since=since)
+    refresh_sidebar_mascots(tabs, agents)
     update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
 
 

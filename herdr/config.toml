@@ -72,28 +72,30 @@ auto_switch = false
 rows = [
   ["state_icon", { token = "$t1", bold = true }],
   [{ token = "$t2", bold = true }],
-  [{ token = "agent", dim = true }, { token = "workspace", dim = true }],
+  [{ token = "agent", dim = true }, { token = "workspace", dim = true }, { token = "$model", dim = true }],
 ]
 
-# Two-line marks occupy the same 9-column footprint for Claude, Codex, and OpenCode.
+# All mascot rows occupy nine columns; OpenCode uses three rows.
 [ui.sidebar.agents.rows_by_agent]
 # Two-line logo; beside its top line: how long ago the last prompt was sent (token $ago from the script).
 claude = [
   ["state_icon", { token = "$t1", bold = true }],
   [{ token = "$t2", bold = true }],
+  ["$logo_gap"],
   [{ token = "$m1", fg = "#D97757" }, { token = "$ago", dim = true }],
-  [{ token = "$m2", fg = "#D97757" }, { token = "workspace", dim = true }],
+  [{ token = "$m2", fg = "#D97757" }, { token = "workspace", dim = true }, { token = "$model", dim = true }],
 ]
 codex = [
   ["state_icon", { token = "$t1", bold = true }],
   [{ token = "$t2", bold = true }],
+  ["$logo_gap"],
   [{ token = "$m1", fg = "#9EF0A6" }, { token = "$ago", dim = true }],
-  [{ token = "$m2", fg = "#9EF0A6" }, { token = "workspace", dim = true }],
+  [{ token = "$m2", fg = "#9EF0A6" }, { token = "workspace", dim = true }, { token = "$model", dim = true }],
 ]
 opencode = [
   ["state_icon", { token = "$t1", bold = true }],
   [{ token = "$t2", bold = true }],
   [{ token = "$m1", fg = "#EEEEEE" }, { token = "$ago", dim = true }],
-  [{ token = "$m2", fg = "#EEEEEE" }, { token = "workspace", dim = true }],
+  [{ token = "$m2", fg = "#EEEEEE" }, { token = "workspace", dim = true }, { token = "$model", dim = true }],
   [{ token = "$m3", fg = "#EEEEEE" }],
 ]

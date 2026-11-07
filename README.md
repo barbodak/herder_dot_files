@@ -25,7 +25,7 @@ CLAUDE             CODEX              OPENCODE
                                        █▄▄█
 ```
 
-The art is made from text and Unicode block characters, not embedded pictures. Claude and Codex occupy two art rows; OpenCode uses three to keep its taller shape. Each row is padded to a nine-character slot with braille blanks so Herdr preserves its alignment.
+The art is made from text and Unicode block characters, not embedded pictures. Claude and Codex occupy two art rows; OpenCode uses three to keep its taller shape. Each row is padded to a nine-character slot with braille blanks so Herdr preserves its alignment. Claude and Codex have one blank row immediately above their mascots. OpenCode has no extra blank row; its three-row outline is indented one character in the shared nine-character slot.
 
 A sidebar entry combines:
 
@@ -33,9 +33,19 @@ A sidebar entry combines:
 - The conversation title, with a tab-position number when initialized/reported.
 - The agent's mascot.
 - Time since the last user prompt, when the full reporter has that information.
-- The containing Herdr space name.
+- The containing Herdr space name, followed by the session model, such as `hrt · GPT-6.1 Sol`.
 
 The space name is a container label, not the working directory. An agent running in a different project directory can still belong to the `hrt` space.
+
+### Model labels
+
+The model appears immediately after the space name on the same sidebar row. The watcher refreshes it in both normal and labels-only mode, without making model/API calls:
+
+- **Claude:** reads the latest assistant model from that exact session's local transcript, ignoring synthetic messages. The displayed model is the last one recorded in the session; a selection change can appear after the next assistant response.
+- **Codex:** reads the session's model from the local read-only thread database. It matches the reported session ID when available, otherwise an exact conversation name/title plus working directory. Ambiguous matches are left blank.
+- **OpenCode:** reads the model from its local session record. Without a reported session ID, the model is shown only when exactly one non-archived root session matches the working directory.
+
+Labels use compact names such as `Opus 5.5`, `Sonnet 5.5`, and `GPT-6.1 Sol`. Long values can be clipped by the fixed sidebar width. Missing, unsupported, or ambiguous session data clears the model label instead of substituting a global default. Only model identity is reported to Herdr; local session databases/transcripts are not copied to this repository.
 
 ### State symbols
 
@@ -195,7 +205,7 @@ The live setup uses a background **labels-only watcher**. Its PID is recorded in
 
 Full-reporter mode reads Claude/Codex local history to derive time since the last user prompt. It can translate Persian titles with `claude -p --model haiku`, caching translations in `~/.config/herdr/title-cache.json`. Translation is a model call, not an offline operation. Failed translations fall back to the saved tab name. Automatic prompt-recency lookup currently covers Claude and Codex, not OpenCode.
 
-Labels-only mode preserves existing sidebar titles and recency values, which can therefore become stale. It initializes missing mascot/title metadata for newly detected agents, including OpenCode, without translating titles.
+Labels-only mode refreshes session model labels while preserving existing sidebar titles and recency values, which can therefore become stale. It initializes missing mascot/title metadata for newly detected agents, including OpenCode, without translating titles.
 
 Original tab names are saved locally in `~/.config/herdr/saved-tab-labels.json` before decoration. This lets a shell tab recover its readable name when its agent exits and allows explicit restoration. Manual tab renames are preserved as the new underlying name. No chat histories, saved tab names, SSH host details, translation caches, logs, or session snapshots are committed here.
 
@@ -231,7 +241,7 @@ The earlier terminal-box Codex mark, blank agent labels, and colored-square emoj
 python3 -m unittest discover -s tests -v
 ```
 
-Fourteen tests cover tab numbering, per-space order, reordering, icon transitions, name restoration, numeric user names, migration from blank labels, SSH argument handling, mocked OS probes and failures, caching, foreground-process selection, and OpenCode sidebar initialization.
+Nineteen tests cover tab numbering, per-space order, reordering, icon transitions, name restoration, numeric user names, migration from blank labels, SSH argument handling, mocked OS probes and failures, caching, foreground-process selection, OpenCode sidebar initialization, exact and ambiguous model/session matching, model changes, missing data, and model display names.
 
 Live API checks verified top labels, preserved sidebar titles, the local Apple icon, and OpenCode's three-row art and top mark. Ghostty's font lookup verified glyph availability. Remote Ubuntu/macOS/Linux responses are tested with simulated SSH results; no live remote SSH session was open during that validation.
 
