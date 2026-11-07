@@ -95,4 +95,5 @@ opencode = [
   [{ token = "$t2", bold = true }],
   [{ token = "$m1", fg = "#EEEEEE" }, { token = "$ago", dim = true }],
   [{ token = "$m2", fg = "#EEEEEE" }, { token = "workspace", dim = true }],
+  [{ token = "$m3", fg = "#EEEEEE" }],
 ]

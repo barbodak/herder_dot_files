@@ -17,9 +17,11 @@ class SidebarMascotTests(unittest.TestCase):
             self.assertIn('t1=1 OpenCode', args)
             self.assertIn('m1=' + ns['MASCOT']['opencode'][0], args)
             self.assertIn('m2=' + ns['MASCOT']['opencode'][1], args)
+            self.assertIn('m3=' + ns['MASCOT']['opencode'][2], args)
+            self.assertEqual(tuple(row.strip('\u2800') for row in ns['MASCOT']['opencode']), ('█▀▀█', '█▒▒█', '█▄▄█'))
             self.assertTrue(all(len(row) == 9 for row in ns['MASCOT']['opencode']))
             agent.update(display_agent=ns['LOGOS']['opencode'], tokens={
-                't1': 'Existing title', 'm1': ns['MASCOT']['opencode'][0], 'm2': ns['MASCOT']['opencode'][1]})
+                't1': 'Existing title', 'm1': ns['MASCOT']['opencode'][0], 'm2': ns['MASCOT']['opencode'][1], 'm3': ns['MASCOT']['opencode'][2]})
             run.reset_mock()
             function(tabs, [agent])
             run.assert_not_called()

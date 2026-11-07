@@ -19,16 +19,17 @@ Claude keeps its orange pixel mascot. Codex uses the mint Ghost, occupying the s
  █ ▪ ▪ █
 ```
 
-OpenCode uses a light-gray, two-row block outline based on its logo:
+OpenCode uses a light-gray, full-height three-row block outline based on its logo:
 
 ```text
   █▀▀█
+  █▒▒█
   █▄▄█
 ```
 
 Its top-tab marker is the ordinary Unicode symbol **▣** (U+25A3), a compact substitute rather than an official Nerd Font logo. No custom font is needed. Agent mascots and an initial sidebar title are populated automatically for newly detected agents, including OpenCode.
 
-The script pads both rows to nine cells with braille blanks so Herdr preserves their alignment.
+The script pads mascot rows to nine cells with braille blanks so Herdr preserves their alignment.
 
 ## Install
 
