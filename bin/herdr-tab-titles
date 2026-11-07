@@ -13,7 +13,7 @@ BLANK_TAB = "\u2800"  # Legacy blank label and fallback for unknown agents
 TAB_ICONS = {"claude": "\uec82", "codex": "\uec81"}  # Nerd Fonts: cod-claude, cod-openai
 MANAGED_LABELS = {BLANK_TAB, *TAB_ICONS.values(), "\uec82\uec81"}
 TERMINAL_ICON = "\uf489"  # Nerd Fonts: oct-terminal
-NUMBERED_LABEL = re.compile(r"^\d+ (.*)$")
+NUMBERED_LABEL = re.compile(r"^\d+\.? (.*)$")
 NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
 GENERIC = {"claude code", "codex", ""}
 
@@ -180,9 +180,9 @@ def update_tab_labels(tabs, agents, restore=False):
             if all_agents:
                 kinds = {agent.get("agent") for agent in group}
                 icon = "".join(glyph for kind, glyph in TAB_ICONS.items() if kind in kinds) or BLANK_TAB
-                desired = f"{number} {icon}"
+                desired = f"{number}. {icon}"
             else:
-                desired = f"{number} {TERMINAL_ICON} {base}"
+                desired = f"{number}. {TERMINAL_ICON} {base}"
         if label != desired:
             save_labels(saved)  # Persist recovery names before renaming.
             herdr("tab", "rename", key, desired)

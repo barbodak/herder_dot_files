@@ -26,7 +26,7 @@ class TabLabelTests(unittest.TestCase):
 
     def test_numbered_logos_and_terminal_names(self):
         self.sync()
-        self.assertEqual([t['label'] for t in self.tabs], ['1 \uec82', '2 \uf489 Server logs', '3 \uf489 Mixed'])
+        self.assertEqual([t['label'] for t in self.tabs], ['1. \uec82', '2. \uf489 Server logs', '3. \uf489 Mixed'])
         self.sync()
         self.assertEqual(self.calls, [])
         self.assertEqual(self.ns['saved_labels']()['shell'], 'Server logs')
@@ -34,7 +34,7 @@ class TabLabelTests(unittest.TestCase):
     def test_agent_exit_restores_name_with_terminal_icon(self):
         self.sync()
         self.sync(agents=[])
-        self.assertEqual(self.tabs[0]['label'], '1 \uf489 Agent conversation')
+        self.assertEqual(self.tabs[0]['label'], '1. \uf489 Agent conversation')
 
     def test_restore_removes_all_decorations(self):
         self.sync()
@@ -46,17 +46,17 @@ class TabLabelTests(unittest.TestCase):
         self.ns['save_labels']({'one': 'Agent conversation'})
         self.tabs[0]['label'] = self.ns['BLANK_TAB']
         self.sync()
-        self.assertEqual(self.tabs[0]['label'], '1 \uec82')
+        self.assertEqual(self.tabs[0]['label'], '1. \uec82')
         self.agents[0]['agent'] = 'codex'
         self.sync()
-        self.assertEqual(self.tabs[0]['label'], '1 \uec81')
+        self.assertEqual(self.tabs[0]['label'], '1. \uec81')
         self.assertEqual(self.ns['saved_labels']()['one'], 'Agent conversation')
 
     def test_manual_rename_preserves_number_in_real_name(self):
         self.sync()
         self.tabs[1]['label'] = '2026 deployment'
         self.sync()
-        self.assertEqual(self.tabs[1]['label'], '2 \uf489 2026 deployment')
+        self.assertEqual(self.tabs[1]['label'], '2. \uf489 2026 deployment')
         self.sync(restore=True)
         self.assertEqual(self.tabs[1]['label'], '2026 deployment')
 
@@ -64,11 +64,11 @@ class TabLabelTests(unittest.TestCase):
         self.sync()
         self.tabs.reverse()
         self.sync()
-        self.assertEqual(self.tabs[0]['label'], '1 \uf489 Mixed')
-        self.assertEqual(self.tabs[2]['label'], '3 \uec82')
+        self.assertEqual(self.tabs[0]['label'], '1. \uf489 Mixed')
+        self.assertEqual(self.tabs[2]['label'], '3. \uec82')
         self.tabs[2]['workspace_id'] = 'w2'
         self.sync()
-        self.assertEqual(self.tabs[2]['label'], '1 \uec82')
+        self.assertEqual(self.tabs[2]['label'], '1. \uec82')
 
 
 if __name__ == '__main__':
