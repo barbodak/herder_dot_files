@@ -7,7 +7,7 @@ Personal terminal UI configuration for **Herdr TUI 0.9.5**, with a Rose Pine the
 ## Included
 
 - `herdr/config.toml`: theme, pane/window shortcuts, sidebar rows, and a fixed 36-column sidebar.
-- `bin/herdr-tab-titles`: full sidebar titles, numbered Nerd Font logos in the top bar and terminal icons beside shell names, two-line wrapping at 32 text columns, tab-number labels, prompt recency, and agent mascots.
+- `bin/herdr-tab-titles`: full sidebar titles, numbered Nerd Font logos in the top bar and host OS icons beside shell names, two-line wrapping at 32 text columns, tab-number labels, prompt recency, and agent mascots.
 - `install.py`: installs both files with timestamped backups.
 - `screenshots/`: before and after screenshots supplied during customization.
 - [ICONS.md](ICONS.md): all 20 icon options from the design session.
@@ -45,7 +45,7 @@ herdr-tab-titles --labels-only
 herdr-tab-titles --labels-only --watch
 ```
 
-Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. These are monochrome font logos, not emoji. Every tab begins with its position number followed by a dot (for example, `1.`) in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number. + terminal icon + name`, using Nerd Fonts `oct-terminal` (U+F489). Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with a terminal icon unless you manually renamed the tab.
+Claude tabs use **Nerd Fonts `cod-claude` (U+EC82)**, and Codex tabs use **`cod-openai` (U+EC81)**. These are monochrome font logos, not emoji. Every tab begins with its position number followed by a dot (for example, `1.`) in its workspace, matching Ctrl+S → 1–9. Ordinary terminals display `number. + OS icon + name`: Apple for macOS, Ubuntu for Ubuntu, and Linux for other Linux distributions. The OS icon replaces the old terminal symbol. Tabs containing both agent kinds show both logos; unknown kinds fall back to a braille blank. Agent tabs still occupy Herdr's minimum eight-column tab slots; shell tabs retain their names after the number and terminal icon. Mixed agent/shell tabs also retain their names. Before blanking, original names are saved locally in `~/.config/herdr/saved-tab-labels.json`. That file is not part of this repository. If an agent exits, the next watcher pass displays the old name with its OS icon unless you manually renamed the tab.
 
 Stop the watcher before restoring all names:
 
@@ -68,6 +68,18 @@ ghostty +show-face --cp=0xf489
 ```
 
 Expected: the logos report `Symbols Nerd Font Mono`; the terminal icon reports `Symbols Nerd Font`. On other terminals, configure that font as a fallback if the icons appear as missing-glyph boxes.
+
+## SSH host icons
+
+The watcher checks the foreground process of shell tabs. Local macOS shells use the Apple logo (U+F179). When the foreground program is OpenSSH, a short, read-only SSH probe runs `uname -s` and reads the distribution ID from `/etc/os-release`. Confirmed Ubuntu hosts use U+F31B; other Linux hosts use U+F17C; remote macOS uses Apple. An unknown or unreachable SSH host uses a globe (U+F0AC), rather than guessing its OS from its hostname. Agent tabs retain their Claude/OpenAI logos.
+
+Successful OS checks are cached for ten minutes in watcher memory; failed checks for one minute. The probe uses the existing destination and connection options, including ports, keys, SSH config files, and jump hosts. It is noninteractive, requires an already trusted host key, disables forwarding and local commands, and has a five-second process timeout. It never sends a command into the terminal you are using. Password-only sessions can show the globe because the separate probe cannot ask for a password. Unsupported SSH command forms also use the globe.
+
+Changes appear on the next watcher pass. Exiting SSH restores the local OS icon. For split shell tabs, the currently focused pane is used when available, otherwise the first pane. No SSH configuration or remote dotfiles are changed, and no host details or caches are committed here.
+
+The local Apple icon was verified live. Ubuntu/macOS/Linux probe responses, failures, SSH argument handling, and icon transitions are covered by mocked tests; no live remote SSH session was open during setup.
+
+References: [OpenSSH command options](https://man.openbsd.org/ssh.1), [OpenSSH configuration](https://man.openbsd.org/ssh_config.5).
 
 ## Existing shortcuts
 
@@ -108,4 +120,4 @@ The installer prints the location of every backup. Copy the desired `.bak-<times
 python3 -m unittest discover -s tests -v
 ```
 
-Tests cover numbered agent logos, terminal names, repeated updates, restoration after agent exit, explicit restore, manual names starting with numbers, migration from blank labels, tab reordering, and numbering independently in each workspace. The live session was also checked through the Herdr API: every tab had its position number, agents had their correct logos, and the shell tab retained its name beside a terminal icon.
+Tests cover numbered agent logos, terminal names, repeated updates, restoration after agent exit, explicit restore, manual names starting with numbers, migration from blank labels, tab reordering, and numbering independently in each workspace. The live session was also checked through the Herdr API: every tab had its position number, agents had their correct logos, and the shell tab retained its name beside the local Apple icon.

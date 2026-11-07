@@ -13,6 +13,9 @@ BLANK_TAB = "\u2800"  # Legacy blank label and fallback for unknown agents
 TAB_ICONS = {"claude": "\uec82", "codex": "\uec81"}  # Nerd Fonts: cod-claude, cod-openai
 MANAGED_LABELS = {BLANK_TAB, *TAB_ICONS.values(), "\uec82\uec81"}
 TERMINAL_ICON = "\uf489"  # Nerd Fonts: oct-terminal
+OS_ICONS = {"darwin": "\uf179", "ubuntu": "\uf31b", "linux": "\uf17c", "remote": "\uf0ac"}
+SHELL_ICONS = {TERMINAL_ICON, *OS_ICONS.values()}
+HOST_CACHE = {}
 NUMBERED_LABEL = re.compile(r"^\d+\.? (.*)$")
 NON_LATIN = re.compile(r"[؀-ۿﭐ-﷿ﹰ-﻿]")
 GENERIC = {"claude code", "codex", ""}
@@ -141,19 +144,136 @@ def save_labels(labels):
     temporary.replace(TAB_LABELS)
 
 
+def local_os_icon():
+    if sys.platform == "darwin":
+        return OS_ICONS["darwin"]
+    if sys.platform.startswith("linux"):
+        try:
+            release = __import__("platform").freedesktop_os_release()
+        except OSError:
+            release = {}
+        return OS_ICONS.get(release.get("ID"), OS_ICONS["linux"])
+    return TERMINAL_ICON
+
+
+def ssh_connection_args(argv):
+    """Keep connection options, excluding forwarding, commands, and control operations."""
+    if not argv or Path(argv[0]).name != "ssh":
+        return None
+    takes_value = set("BbcDEeFIiJLlmOopQPRSWw")
+    keep_value = set("BbcFIiJlmopPS")
+    keep_flag = set("46C")
+    known_flag = set("46AaCfGgKkMNnqsTtVvXxYyZ")
+    result = []
+    index = 1
+    while index < len(argv):
+        arg = argv[index]
+        index += 1
+        if arg == "--":
+            if index < len(argv):
+                return result + [argv[index]]
+            return None
+        if not arg.startswith("-") or arg == "-":
+            return result + [arg]
+        flags = arg[1:]
+        while flags:
+            flag, flags = flags[0], flags[1:]
+            if flag in takes_value:
+                if flags:
+                    value, flags = flags, ""
+                elif index < len(argv):
+                    value = argv[index]
+                    index += 1
+                else:
+                    return None
+                if flag in "OQW":
+                    return None  # Control/query/stdio transports aren't remote shells.
+                if flag in keep_value:
+                    result.extend(["-" + flag, value])
+                break
+            if flag not in known_flag or flag in "GV":
+                return None
+            if flag in keep_flag:
+                result.append("-" + flag)
+    return None
+
+
+def remote_os_icon(connection):
+    key = tuple(connection)
+    now = time.monotonic()
+    cached = HOST_CACHE.get(key)
+    if cached and cached[0] > now:
+        return cached[1]
+    options = ["BatchMode=yes", "ConnectTimeout=3", "ConnectionAttempts=1",
+               "StrictHostKeyChecking=yes", "RequestTTY=no", "RemoteCommand=none",
+               "SessionType=default", "ForkAfterAuthentication=no", "StdinNull=yes",
+               "ClearAllForwardings=yes", "ForwardAgent=no", "ForwardX11=no",
+               "PermitLocalCommand=no", "ControlMaster=no"]
+    args = ["ssh"]
+    for option in options:
+        args.extend(["-o", option])
+    probe = "printf '__HERDR_OS__\\n'; uname -s; if test -r /etc/os-release; then sed -n 's/^ID=//p' /etc/os-release; fi"
+    args.extend(connection)
+    args.append(probe)
+    icon, ttl = OS_ICONS["remote"], 60
+    try:
+        response = subprocess.run(args, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
+        lines = response.stdout.splitlines()
+        if response.returncode == 0 and "__HERDR_OS__" in lines:
+            data = lines[lines.index("__HERDR_OS__") + 1:]
+            kernel = data[0].strip().lower() if data else ""
+            distro = data[1].strip().strip("\"'").lower() if len(data) > 1 else ""
+            icon = OS_ICONS.get(distro, OS_ICONS.get(kernel, OS_ICONS["remote"]))
+            ttl = 600
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    HOST_CACHE[key] = (time.monotonic() + ttl, icon)
+    return icon
+
+
+def terminal_icons(tabs, agents):
+    counts = {}
+    for agent in agents:
+        counts[agent["tab_id"]] = counts.get(agent["tab_id"], 0) + 1
+    shell_tabs = {tab["tab_id"] for tab in tabs if counts.get(tab["tab_id"], 0) != tab.get("pane_count", 1)}
+    if not shell_tabs:
+        return {}
+    by_tab = {}
+    for pane in herdr("pane", "list")["panes"]:
+        if pane["tab_id"] in shell_tabs:
+            by_tab.setdefault(pane["tab_id"], []).append(pane)
+    icons = {}
+    for tab, panes in by_tab.items():
+        pane = next((pane for pane in panes if pane.get("focused")), panes[0])
+        icon = local_os_icon()
+        try:
+            info = herdr("pane", "process-info", "--pane", pane["pane_id"])["process_info"]
+            for process in info.get("foreground_processes", []):
+                argv = process.get("argv", [])
+                if argv and Path(argv[0]).name == "ssh":
+                    connection = ssh_connection_args(argv)
+                    icon = remote_os_icon(connection) if connection else OS_ICONS["remote"]
+                    break
+        except (KeyError, OSError, subprocess.SubprocessError):
+            continue
+        icons[tab] = icon
+    return icons
+
+
 def undecorated_label(label):
     """Remove only decorations generated by this script, preserving user names."""
     match = NUMBERED_LABEL.fullmatch(label)
     if match:
         tail = match.group(1)
-        if tail in MANAGED_LABELS or tail.startswith(TERMINAL_ICON + " "):
+        if tail in MANAGED_LABELS or any(tail.startswith(icon + " ") for icon in SHELL_ICONS):
             label = tail
-    if label.startswith(TERMINAL_ICON + " "):
-        return label[len(TERMINAL_ICON) + 1:]
+    for icon in SHELL_ICONS:
+        if label.startswith(icon + " "):
+            return label[len(icon) + 1:]
     return label
 
 
-def update_tab_labels(tabs, agents, restore=False):
+def update_tab_labels(tabs, agents, restore=False, host_icons=None):
     """Number every tab; use logos for agents and a terminal icon for shells."""
     saved = saved_labels()
     groups = {}
@@ -182,7 +302,7 @@ def update_tab_labels(tabs, agents, restore=False):
                 icon = "".join(glyph for kind, glyph in TAB_ICONS.items() if kind in kinds) or BLANK_TAB
                 desired = f"{number}. {icon}"
             else:
-                desired = f"{number}. {TERMINAL_ICON} {base}"
+                desired = f"{number}. {(host_icons or {}).get(key, TERMINAL_ICON)} {base}"
         if label != desired:
             save_labels(saved)  # Persist recovery names before renaming.
             herdr("tab", "rename", key, desired)
@@ -217,7 +337,7 @@ def sync():
             continue
         english = shorten(english)
         report(a["pane_id"], *two_lines(f"{position.get(tab, '?')} {english}"), agent=a["agent"], since=since)
-    update_tab_labels(tabs, agents)
+    update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
 
 
 def main():
@@ -234,7 +354,9 @@ def main():
     while True:
         try:
             if args.labels_only:
-                update_tab_labels(herdr("tab", "list")["tabs"], herdr("agent", "list")["agents"])
+                tabs = herdr("tab", "list")["tabs"]
+                agents = herdr("agent", "list")["agents"]
+                update_tab_labels(tabs, agents, host_icons=terminal_icons(tabs, agents))
             else:
                 sync()
         except Exception as error:
